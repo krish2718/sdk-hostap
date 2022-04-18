@@ -1,0 +1,11 @@
+#
+# Copyright (c) 2019 - 2020 Nordic Semiconductor
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+menu "WPA supplicant"
+
+rsource "zephyr/Kconfig"
+
+endmenu

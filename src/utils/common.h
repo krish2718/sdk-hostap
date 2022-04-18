@@ -129,7 +129,7 @@ typedef int8_t s8;
 
 /* Define platform specific byte swapping macros */
 
-#if defined(__CYGWIN__) || defined(CONFIG_NATIVE_WINDOWS)
+#if defined(__CYGWIN__) || defined(CONFIG_NATIVE_WINDOWS) || defined (CONFIG_ZEPHYR)
 
 static inline unsigned short wpa_swap_16(unsigned short v)
 {
@@ -553,7 +553,9 @@ void int_array_concat(int **res, const int *a);
 void int_array_sort_unique(int *a);
 void int_array_add_unique(int **res, int a);
 
+#ifndef CONFIG_ZEPHYR
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+#endif
 
 void str_clear_free(char *str);
 void bin_clear_free(void *bin, size_t len);

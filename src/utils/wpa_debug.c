@@ -638,6 +638,7 @@ void wpa_msg_register_ifname_cb(wpa_msg_get_ifname_func func)
 
 void wpa_msg(void *ctx, int level, const char *fmt, ...)
 {
+#ifndef CONFIG_ZEPHYR
 	va_list ap;
 	char *buf;
 	int buflen;
@@ -671,6 +672,7 @@ void wpa_msg(void *ctx, int level, const char *fmt, ...)
 	if (wpa_msg_cb)
 		wpa_msg_cb(ctx, level, WPA_MSG_PER_INTERFACE, buf, len);
 	bin_clear_free(buf, buflen);
+#endif
 }
 
 

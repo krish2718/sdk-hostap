@@ -8187,6 +8187,7 @@ void wpas_request_disconnection(struct wpa_supplicant *wpa_s)
 }
 
 
+#ifndef CONFIG_ZEPHYR
 void dump_freq_data(struct wpa_supplicant *wpa_s, const char *title,
 		    struct wpa_used_freq_data *freqs_data,
 		    unsigned int len)
@@ -8201,6 +8202,7 @@ void dump_freq_data(struct wpa_supplicant *wpa_s, const char *title,
 			i, cur->freq, cur->flags);
 	}
 }
+#endif /* CONFIG_ZEPHYR */
 
 
 /*
@@ -8253,7 +8255,9 @@ int get_shared_radio_freqs_data(struct wpa_supplicant *wpa_s,
 		}
 	}
 
+#ifndef CONFIG_ZEPHYR
 	dump_freq_data(wpa_s, "completed iteration", freqs_data, idx);
+#endif /* CONFIG_ZEPHYR */
 	return idx;
 }
 
