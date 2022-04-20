@@ -4,18 +4,30 @@
 # SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 #
 
+if(CONFIG_WPA_SUPP)
+
+zephyr_library()
+
 set(WPA_SUPPLICANT_SRC ${CMAKE_CURRENT_SOURCE_DIR}/../wpa_supplicant)
 set(HOSTAP_BASE ${CMAKE_CURRENT_SOURCE_DIR}/../)
 
 set(CMAKE_EXE_LINKER_FLAGS "--specs=nosys.specs -lnosys")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DMISSING_SYSCALL_NAMES")
 
+zephyr_compile_definitions(
+	CONFIG_ZEPHYR
+)
+
+zephyr_include_directories(
+	${WPA_SUPPLICANT_SRC}/
+	${HOSTAP_BASE}/src/
+)
+
 zephyr_library_compile_definitions(
 	TLS_DEFAULT_CIPHERS=\""DEFAULT:!EXP:!LOW"\"
 	CONFIG_CRYPTO_INTERNAL
 	CONFIG_SHA256
 	CONFIG_SME
-	CONFIG_ZEPHYR
 	CONFIG_NO_CONFIG_WRITE
 	CONFIG_NO_CONFIG_BLOBS
 	CONFIG_WPA_S_ZEPHYR_L2_WIFI_MGMT
@@ -97,3 +109,4 @@ zephyr_library_sources(
 	src/supp_mgmt.c
 	src/supp_shell.c
 )
+endif()

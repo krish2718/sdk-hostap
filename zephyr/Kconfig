@@ -7,6 +7,5 @@
 
 menuconfig WPA_SUPP
         bool "WPA supplicant"
-	default y
         help
           WPA supplicant
