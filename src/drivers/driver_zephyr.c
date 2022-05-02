@@ -170,12 +170,12 @@ void wpa_drv_zep_event_proc_assoc_resp(struct zep_drv_if_ctx *if_ctx,
 				     EVENT_ASSOC_REJECT,
 				     event);
 	else {
+		if_ctx->associated = true;
+		os_memcpy(if_ctx->bssid, event->assoc_info.addr, ETH_ALEN);
+
 		wpa_supplicant_event(if_ctx->supp_if_ctx,
 				     EVENT_ASSOC,
 				     event);
-
-                if_ctx->associated = true;
-                os_memcpy(if_ctx->bssid, event->assoc_info.addr, ETH_ALEN);
         }
 }
 
@@ -333,7 +333,7 @@ static int wpa_drv_zep_scan2(void *priv,
 	 */
 	timeout = 30;
 
-	printk("%s: Scan requested - scan timeout %d seconds", __func__, timeout);
+	printk("%s: Scan requested - scan timeout %d seconds \n", __func__, timeout);
 
 	eloop_cancel_timeout(wpa_drv_zep_scan_timeout,
 		       	     if_ctx,
@@ -572,15 +572,27 @@ static int wpa_drv_zep_get_capa(void *priv,
 
 static int wpa_drv_zep_get_bssid(void *priv, u8 *bssid)
 {
-    struct zep_drv_if_ctx *if_ctx = NULL;
-	
-    if_ctx = priv;
+	struct zep_drv_if_ctx *if_ctx = NULL;
 
-    memcpy(bssid, if_ctx->bssid, ETH_ALEN);
+	if_ctx = priv;
+
+	memcpy(bssid, if_ctx->bssid, ETH_ALEN);
 
 	return 0;
 }
 
+static int wpa_drv_zep_set_supp_port(void *priv, int authorized)
+{
+	struct zep_drv_if_ctx *if_ctx = NULL;
+	const struct zep_wpa_supp_dev_ops *dev_ops = NULL;
+
+	if_ctx = priv;
+
+	dev_ops = if_ctx->dev_ctx->api;
+
+	return dev_ops->set_supp_port(if_ctx->dev_priv, 
+			authorized, if_ctx->bssid);
+}
 
 const struct wpa_driver_ops wpa_driver_zep_ops = {
 	.name = "zephyr",
@@ -596,6 +608,7 @@ const struct wpa_driver_ops wpa_driver_zep_ops = {
         .associate = wpa_drv_zep_associate,
         .get_capa = wpa_drv_zep_get_capa,
         .get_bssid = wpa_drv_zep_get_bssid,
+	.set_supp_port = wpa_drv_zep_set_supp_port,
 #ifdef notyet
 	.deauthenticate = wpa_drv_zep_deauthenticate,
 

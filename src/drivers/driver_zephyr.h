@@ -102,6 +102,9 @@ struct zep_wpa_supp_dev_ops {
 		       size_t seq_len,
 		       const unsigned char *key,
 		       size_t key_len);
+	int (*set_supp_port)(void *if_priv,
+			int authorized,
+			char *bssid);
 };
 
 void wpa_supp_event_handler(void *ctx,
