@@ -488,6 +488,7 @@ out:
 static int wpa_drv_zep_get_capa(void *priv, struct wpa_driver_capa *capa)
 {
 	/* Use SME */
+	capa->flags = 0;
 	capa->flags |= WPA_DRIVER_FLAGS_SME;
 
 	return 0;
