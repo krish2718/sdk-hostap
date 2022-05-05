@@ -32,6 +32,7 @@ struct l2_packet_data {
 	int l2_hdr; /* whether to include layer 2 (Ethernet) header data
 		     * buffers */
 	int fd;
+	unsigned short protocol;
 };
 
 int l2_packet_get_own_addr(struct l2_packet_data *l2, u8 *addr)
@@ -82,6 +83,7 @@ static void l2_packet_receive(int sock, void *eloop_ctx, void *sock_ctx)
 	int res;
 	struct sockaddr_ll ll;
 	socklen_t fromlen;
+	struct l2_ethhdr *ethhdr;
 
 	os_memset(&ll, 0, sizeof(ll));
 	fromlen = sizeof(ll);
@@ -92,10 +94,30 @@ static void l2_packet_receive(int sock, void *eloop_ctx, void *sock_ctx)
 		return;
 	}
 
-	buf[0] = 0;
-	res = 0;
+	// FIXME: We should only get registered protcols from networking stack
+	// but for some reason ETH_P_ALL is being set (bind_default)
+	ethhdr = (struct l2_ethhdr *) buf;
+	if (ethhdr->h_proto != htons(l2->protocol)) {
+		return;
+	}
 
-	l2->rx_callback(l2->rx_callback_ctx, ll.sll_addr, buf, res);
+	// FIXME: sll_addr is not being filled as L2 header is not removed
+	wpa_printf(MSG_DEBUG, "%s: src=" MACSTR " len=%d",
+		   __func__, MAC2STR(ll.sll_addr), (int) res);
+
+	// FIXME: CONFIG_NET_SOCKETS_PACKET_DGRAM should remove L2 header and fill ll
+	// but, it is not working. For now, remove the L2 header before passing the
+	// packet to the upper layers
+	if (!l2->l2_hdr) {
+		unsigned char l2_hdr_len = sizeof(struct l2_ethhdr);
+		if (res > l2_hdr_len) {
+			l2->rx_callback(l2->rx_callback_ctx, ll.sll_addr, &buf[l2_hdr_len], res-l2_hdr_len);
+		} else {
+			wpa_printf(MSG_WARNING, "RAW : received packet is too short: %d", res);
+		}
+	} else {
+		l2->rx_callback(l2->rx_callback_ctx, ll.sll_addr, buf, res);
+	}
 }
 
 static void iface_cb(struct net_if *iface, void *user_data)
@@ -136,6 +158,7 @@ l2_packet_init(const char *ifname, const u8 *own_addr, unsigned short protocol,
 	l2->rx_callback = rx_callback;
 	l2->rx_callback_ctx = rx_callback_ctx;
 	l2->l2_hdr = l2_hdr;
+	l2->protocol = protocol;
 
 	net_if_foreach(iface_cb, l2);
 
@@ -161,7 +184,11 @@ l2_packet_init(const char *ifname, const u8 *own_addr, unsigned short protocol,
 	ll.sll_ifindex = l2->ifindex;
 	ll.sll_protocol = htons(protocol);
 
-	ret = bind(l2->fd, (const struct sockaddr *)&ll, sizeof(ll));
+	// FIXME: This should skip bind_default to ETH_P_ALL, but its not.
+	if (l2->own_addr)
+		memcpy(ll.sll_addr, l2->own_addr, ETH_ALEN);
+
+	ret = bind(l2->fd, (const struct sockaddr *) &ll, sizeof(ll));
 	if (ret < 0) {
 		goto fail;
 	}
