@@ -31,7 +31,7 @@ zephyr_library_compile_definitions(
 	CONFIG_NO_CONFIG_WRITE
 	CONFIG_NO_CONFIG_BLOBS
 	CONFIG_WPA_S_ZEPHYR_L2_WIFI_MGMT
-	CONFIG_NO_STDOUT_DEBUG
+	#CONFIG_NO_STDOUT_DEBUG
 	)
 
 zephyr_library_include_directories(

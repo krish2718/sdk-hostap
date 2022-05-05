@@ -103,7 +103,7 @@ void start_wpa_supplicant(void)
 	LOG_ERR("%s: %d Started Thread\n", __func__, __LINE__);
 
 	os_memset(&params, 0, sizeof(params));
-	params.wpa_debug_level = MSG_INFO;
+	params.wpa_debug_level = MSG_EXCESSIVE;
 
 	iface = ifaces = os_zalloc(sizeof(struct wpa_interface));
 	if (ifaces == NULL) {
