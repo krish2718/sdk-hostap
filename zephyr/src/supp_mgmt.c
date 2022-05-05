@@ -11,6 +11,7 @@ LOG_MODULE_REGISTER(wpa_supplicant_mgmt, LOG_LEVEL_DBG);
 
 #include "includes.h"
 #include "common.h"
+#include "wpa_supplicant/config.h"
 #include "wpa_supplicant_i.h"
 #include "driver_i.h"
 #include "fst/fst.h"
@@ -19,7 +20,6 @@ LOG_MODULE_REGISTER(wpa_supplicant_mgmt, LOG_LEVEL_DBG);
 #include "wpa_supplicant_i.h"
 #include "wifi_mgmt.h"
 #include "supp_mgmt.h"
-#include "config.h"
 #include "driver_zephyr.h"
 
 extern struct wpa_supplicant *wpa_s_0;

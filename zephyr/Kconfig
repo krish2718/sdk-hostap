@@ -5,7 +5,30 @@
 # SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 #
 
-config WPA_SUPP
-        bool "WPA supplicant"
+menuconfig WPA_SUPP
+        bool "WPA WPA_SUPP"
         help
-          WPA supplicant
+          WPA WPA_SUPP
+
+menuconfig WPA_SUPP_CRYPTO
+	bool "Crypto support for WiFi"
+  	default y
+
+menuconfig WPA_SUPP_CRYPTO_ENTERPRISE
+	bool "Enterprise Crypto support for WiFi"
+
+menuconfig WPA_SUPP_WPA3
+	bool "WPA3 support"
+	select WPA_SUPP_CRYPTO
+
+menuconfig WPA_SUPP_AP
+	bool "AP mode support"
+	select WPA_SUPP_CRYPTO
+
+menuconfig WPA_SUPP_WPS
+	bool "WPS support"
+
+menuconfig WPA_SUPP_P2P
+	bool "P2P mode support"
+	select WPA_SUPP_AP
+	select WPA_SUPP_WPS
