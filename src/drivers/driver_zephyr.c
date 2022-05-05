@@ -471,8 +471,12 @@ static int _wpa_drv_zep_set_key(
 	struct zep_wpa_supp_dev_ops *dev_ops = NULL;
 	int ret = -1;
 
-	if ((!priv) || (!addr) || (!seq) || (!key)) {
-		printk("%s: Invalid params\n", __func__);
+	if (!priv) {
+		printk("%s: Invalid handle\n", __func__);
+		goto out;
+	}
+	if ((alg != WPA_ALG_NONE) && ((!seq) || (!key))) {
+		printk("%s: Missing mandatory params\n", __func__);
 		goto out;
 	}
 
