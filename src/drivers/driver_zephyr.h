@@ -33,9 +33,7 @@ struct zep_drv_if_ctx {
 	bool scan_res2_get_in_prog;
 
 	unsigned int assoc_freq;
-#ifdef notyet
 	unsigned char ssid[SSID_MAX_LEN];
-#endif /* notyet */
 	size_t ssid_len;
 	unsigned char bssid[6];
 	bool associated;

@@ -411,6 +411,8 @@ static int wpa_drv_zep_authenticate(void *priv,
 	if_ctx = priv;
 
 	dev_ops = if_ctx->dev_ctx->api;
+	os_memcpy(if_ctx->ssid, params->ssid, params->ssid_len);
+	if_ctx->ssid_len = params->ssid_len;
 
 	ret = dev_ops->authenticate(if_ctx->dev_priv, params);
 
@@ -452,38 +454,61 @@ out:
 	return ret;
 }
 
-#ifdef notyet
-static int wpa_drv_zep_set_key(const char *ifname, void *priv, enum wpa_alg alg,
-			       const u8 *addr, int key_idx, int set_tx,
-			       const u8 *seq, size_t seq_len, const u8 *key,
+
+static int _wpa_drv_zep_set_key(
+	       		       void *priv,
+			       const char *ifname,
+			       enum wpa_alg alg,
+			       const u8 *addr,
+			       int key_idx,
+			       int set_tx,
+			       const u8 *seq,
+			       size_t seq_len,
+			       const u8 *key,
 			       size_t key_len)
 {
 	struct zep_drv_if_ctx *if_ctx = NULL;
-	struct wpa_supp_dev_ops *dev_ops = NULL;
+	struct zep_wpa_supp_dev_ops *dev_ops = NULL;
 	int ret = -1;
 
-	if ((!priv) || (!params) || (!addr) || (!seq) || (!key)) {
+	if ((!priv) || (!addr) || (!seq) || (!key)) {
 		printk("%s: Invalid params\n", __func__);
 		goto out;
 	}
 
 	if_ctx = priv;
+	dev_ops = if_ctx->dev_ctx->api;	
 
-	dev_ops = (struct wpa_supp_dev_ops *)if_ctx->dev->api;
+    wpa_printf(MSG_INFO, "%s: priv:%p alg %d addr %p key_idx %d set_tx %d seq %p "
+               "seq_len %d key %p key_len %d\n",
+               __func__, if_ctx->dev_priv, alg, addr, key_idx, set_tx, seq, seq_len, key, key_len);
 
-	ret = dev_ops->set_key(if_ctx->dev_priv, ifname, alg, addr, key_idx,
-			       set_tx, seq, seq_len, key, key_len);
+    ret = dev_ops->set_key(if_ctx->dev_priv,
+			       ifname,
+			       alg,
+			       addr,
+			       key_idx,
+			       set_tx,
+			       seq,
+			       seq_len,
+			       key,
+			       key_len);
 
 	if (ret) {
 		printk("%s: set_key op failed\n", __func__);
 		goto out;
 	}
-
-	ret = 0;
 out:
 	return ret;
 }
-#endif /* notyet */
+
+static int wpa_drv_zep_set_key(void* priv, struct wpa_driver_set_key_params *params)
+{
+	return _wpa_drv_zep_set_key(priv, params->ifname, params->alg, params->addr,
+				    params->key_idx, params->set_tx,
+				    params->seq, params->seq_len,
+				    params->key, params->key_len);
+}
 
 static int wpa_drv_zep_get_capa(void *priv, struct wpa_driver_capa *capa)
 {
@@ -505,6 +530,20 @@ static int wpa_drv_zep_get_bssid(void *priv, u8 *bssid)
 	return 0;
 }
 
+static int wpa_drv_zep_get_ssid(void *priv, u8 *ssid)
+{
+	struct zep_drv_if_ctx *if_ctx = NULL;
+
+	if_ctx = priv;
+
+	if (!if_ctx->ssid)
+		return 0;
+	wpa_printf(MSG_INFO, "%s: SSID size: %d\n", __func__, if_ctx->ssid_len);
+	memcpy(ssid, if_ctx->ssid, if_ctx->ssid_len);
+
+	return if_ctx->ssid_len;
+}
+
 static int wpa_drv_zep_set_supp_port(void *priv, int authorized)
 {
 	struct zep_drv_if_ctx *if_ctx = NULL;
@@ -514,8 +553,8 @@ static int wpa_drv_zep_set_supp_port(void *priv, int authorized)
 
 	dev_ops = if_ctx->dev_ctx->api;
 
-	return dev_ops->set_supp_port(if_ctx->dev_priv, authorized,
-				      if_ctx->bssid);
+	return dev_ops->set_supp_port(if_ctx->dev_priv,
+			authorized, if_ctx->bssid);
 }
 
 const struct wpa_driver_ops wpa_driver_zep_ops = {
@@ -532,10 +571,10 @@ const struct wpa_driver_ops wpa_driver_zep_ops = {
 	.associate = wpa_drv_zep_associate,
 	.get_capa = wpa_drv_zep_get_capa,
 	.get_bssid = wpa_drv_zep_get_bssid,
+	.get_ssid = wpa_drv_zep_get_ssid,
 	.set_supp_port = wpa_drv_zep_set_supp_port,
 #ifdef notyet
 	.deauthenticate = wpa_drv_zep_deauthenticate,
-
-	.set_key = wpa_drv_zep_set_key,
 #endif /* notyet */
+	.set_key = wpa_drv_zep_set_key,
 };
