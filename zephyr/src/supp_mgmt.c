@@ -66,6 +66,8 @@ static int wifi_supp_connect(uint32_t mgmt_request, struct net_if *iface,
 	const struct device *dev = net_if_get_device(iface);
 	const struct img_rpu_dev_ops_zep *nvlsi_dev_ops = dev->api;
 #endif /* notyet */
+	// TODO: Make this user configurable from shell
+	bool wpa3 = true;
 
 	struct wpa_ssid *ssid = wpa_supplicant_add_network(wpa_s_0);
 
@@ -80,13 +82,25 @@ static int wifi_supp_connect(uint32_t mgmt_request, struct net_if *iface,
 	wpa_s_0->conf->ap_scan= 1;
 
 	if (params->psk) {
-		ssid->key_mgmt = WPA_KEY_MGMT_PSK;
-		str_clear_free(ssid->passphrase);
-		ssid->passphrase = dup_binstr(params->psk, params->psk_length);
-		if (ssid->passphrase == NULL) {
-			printk("%s:Failed to copy passphrase\n", __func__);
-			return -1;
+		if (wpa3) {
+			ssid->key_mgmt = WPA_KEY_MGMT_SAE;
+			ssid->ieee80211w = 1;
+			str_clear_free(ssid->sae_password);
+			ssid->sae_password = dup_binstr(params->psk, params->psk_length);
+			if (ssid->sae_password == NULL) {
+				printk("%s:Failed to copy sae_password\n", __func__);
+				return -1;
+			}
+		} else {
+			ssid->key_mgmt = WPA_KEY_MGMT_PSK;
+			str_clear_free(ssid->passphrase);
+			ssid->passphrase = dup_binstr(params->psk, params->psk_length);
+			if (ssid->passphrase == NULL) {
+				printk("%s:Failed to copy passphrase\n", __func__);
+				return -1;
+			}
 		}
+
 		wpa_config_update_psk(ssid);
 	}
 	wpa_supplicant_enable_network(wpa_s_0, ssid);

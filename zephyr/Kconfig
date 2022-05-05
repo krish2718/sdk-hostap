@@ -20,6 +20,7 @@ menuconfig WPA_SUPP_CRYPTO_ENTERPRISE
 menuconfig WPA_SUPP_WPA3
 	bool "WPA3 support"
 	select WPA_SUPP_CRYPTO
+	default y
 
 menuconfig WPA_SUPP_AP
 	bool "AP mode support"
