@@ -468,7 +468,7 @@ static int _wpa_drv_zep_set_key(
 			       size_t key_len)
 {
 	struct zep_drv_if_ctx *if_ctx = NULL;
-	struct zep_wpa_supp_dev_ops *dev_ops = NULL;
+	const struct zep_wpa_supp_dev_ops *dev_ops = NULL;
 	int ret = -1;
 
 	if (!priv) {
