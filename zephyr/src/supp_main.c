@@ -189,6 +189,6 @@ out:
 	os_free(params.pid_file);
 
 	k_sem_give(&quit_lock);
-	wpa_printf("wpa_supplicant_main: exitcode %d", exitcode);
+	wpa_printf(MSG_INFO, "wpa_supplicant_main: exitcode %d", exitcode);
 	return;
 }
