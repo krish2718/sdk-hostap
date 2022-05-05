@@ -72,13 +72,23 @@ static int wifi_supp_connect(uint32_t mgmt_request, struct net_if *iface,
 	ssid->ssid = os_zalloc(sizeof(u8) * MAX_SSID_LEN);
 
 	memcpy(ssid->ssid, params->ssid, params->ssid_length);
-
 	ssid->ssid_len = params->ssid_length;
-	ssid->key_mgmt = WPA_KEY_MGMT_NONE;
 	ssid->disabled = 1;
+	ssid->key_mgmt = WPA_KEY_MGMT_NONE;
 
 	wpa_s_0->conf->filter_ssids = 1;
+	wpa_s_0->conf->ap_scan= 1;
 
+	if (params->psk) {
+		ssid->key_mgmt = WPA_KEY_MGMT_PSK;
+		str_clear_free(ssid->passphrase);
+		ssid->passphrase = dup_binstr(params->psk, params->psk_length);
+		if (ssid->passphrase == NULL) {
+			printk("%s:Failed to copy passphrase\n", __func__);
+			return -1;
+		}
+		wpa_config_update_psk(ssid);
+	}
 	wpa_supplicant_enable_network(wpa_s_0, ssid);
 
 	return 0;
