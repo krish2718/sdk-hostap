@@ -64,7 +64,8 @@ int l2_packet_send(struct l2_packet_data *l2, const u8 *dst_addr, u16 proto,
 		ll.sll_protocol = htons(proto);
 		ll.sll_halen = ETH_ALEN;
 		os_memcpy(ll.sll_addr, dst_addr, ETH_ALEN);
-		ret = sendto(l2->fd, buf, len, 0, (struct sockaddr *)&ll,
+		// TODO: This takes up too much stack, call wifi driver TX directly?
+		ret = sendto(l2->fd, buf, len, 0, (struct sockaddr *) &ll,
 			     sizeof(ll));
 		if (ret < 0) {
 			wpa_printf(MSG_ERROR, "l2_packet_send - sendto: %s",

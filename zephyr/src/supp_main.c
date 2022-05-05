@@ -27,7 +27,7 @@ LOG_MODULE_REGISTER(wpa_supplicant, LOG_LEVEL_DBG);
 #include "wpa_supplicant_i.h"
 #include "wifi_mgmt.h"
 
-#define MY_STACK_SIZE 4096
+#define MY_STACK_SIZE 8192
 #define MY_PRIORITY 0
 
 struct wpa_supplicant *wpa_s_0;
