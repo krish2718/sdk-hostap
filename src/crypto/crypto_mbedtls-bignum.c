@@ -220,7 +220,7 @@ int crypto_bignum_rshift(
 	if (mbedtls_mpi_copy((mbedtls_mpi *)r, (const mbedtls_mpi *)a)) {
 		return -1;
 	}
-	return mbedtls_mpi_shift_r((mbedtls_mpi *)&r, n);
+	return mbedtls_mpi_shift_r((mbedtls_mpi *)r, n);
 }
 
 int crypto_bignum_legendre(
