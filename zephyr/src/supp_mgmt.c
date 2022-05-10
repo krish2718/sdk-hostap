@@ -68,6 +68,7 @@ static int wifi_supp_connect(uint32_t mgmt_request, struct net_if *iface,
 #endif /* notyet */
 	// TODO: Make this user configurable from shell
 	bool wpa3 = true;
+	bool psk_256 = true;
 
 	struct wpa_ssid *ssid = wpa_supplicant_add_network(wpa_s_0);
 
@@ -92,7 +93,10 @@ static int wifi_supp_connect(uint32_t mgmt_request, struct net_if *iface,
 				return -1;
 			}
 		} else {
-			ssid->key_mgmt = WPA_KEY_MGMT_PSK;
+			if (psk_256)
+				ssid->key_mgmt = WPA_KEY_MGMT_PSK_SHA256;
+			else
+				ssid->key_mgmt = WPA_KEY_MGMT_PSK;
 			str_clear_free(ssid->passphrase);
 			ssid->passphrase = dup_binstr(params->psk, params->psk_length);
 			if (ssid->passphrase == NULL) {
