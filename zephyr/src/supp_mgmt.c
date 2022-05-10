@@ -69,6 +69,7 @@ static int wifi_supp_connect(uint32_t mgmt_request, struct net_if *iface,
 	// TODO: Make this user configurable from shell
 	bool wpa3 = true;
 	bool psk_256 = true;
+	bool pmf = true;
 
 	struct wpa_ssid *ssid = wpa_supplicant_add_network(wpa_s_0);
 
@@ -85,7 +86,6 @@ static int wifi_supp_connect(uint32_t mgmt_request, struct net_if *iface,
 	if (params->psk) {
 		if (wpa3) {
 			ssid->key_mgmt = WPA_KEY_MGMT_SAE;
-			ssid->ieee80211w = 1;
 			str_clear_free(ssid->sae_password);
 			ssid->sae_password = dup_binstr(params->psk, params->psk_length);
 			if (ssid->sae_password == NULL) {
@@ -107,6 +107,10 @@ static int wifi_supp_connect(uint32_t mgmt_request, struct net_if *iface,
 
 		wpa_config_update_psk(ssid);
 	}
+
+	if (pmf)
+		ssid->ieee80211w = 1;
+
 	wpa_supplicant_enable_network(wpa_s_0, ssid);
 
 	return 0;
