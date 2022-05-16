@@ -33,3 +33,7 @@ menuconfig WPA_SUPP_P2P
 	bool "P2P mode support"
 	select WPA_SUPP_AP
 	select WPA_SUPP_WPS
+
+menuconfig WPA_SUPP_DEBUG_LEVEL
+	string "Debug level for prints"
+	default "INFO"

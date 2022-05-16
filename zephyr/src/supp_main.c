@@ -100,10 +100,11 @@ void start_wpa_supplicant(void)
 	struct wpa_params params;
 	struct wpa_global *global;
 
-	LOG_ERR("%s: %d Started Thread\n", __func__, __LINE__);
-
 	os_memset(&params, 0, sizeof(params));
-	params.wpa_debug_level = MSG_EXCESSIVE;
+	params.wpa_debug_level = str_to_debug_level(CONFIG_WPA_SUPP_DEBUG_LEVEL);
+
+	wpa_printf(MSG_INFO, "%s: %d Starting wpa_supplicant thread with debug level: %d\n",
+		  __func__, __LINE__, params.wpa_debug_level);
 
 	iface = ifaces = os_zalloc(sizeof(struct wpa_interface));
 	if (ifaces == NULL) {
