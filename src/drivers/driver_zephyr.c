@@ -227,7 +227,14 @@ static void *wpa_drv_zep_init(void *ctx, const char *ifname, void *global_priv)
 	callbk_fns.deauth = wpa_drv_zep_event_proc_deauth;
 	callbk_fns.disassoc = wpa_drv_zep_event_proc_disassoc;
 
-	if_ctx->dev_priv = dev_ops->init(if_ctx, ifname, &callbk_fns);
+	if_ctx->dev_priv = dev_ops->init(if_ctx,
+					 ifname,
+					 &callbk_fns);
+
+	if (!if_ctx->dev_priv) {
+		printk("%s: Failed to initialize the interface\n", __func__);
+		return NULL;
+	}
 out:
 	return if_ctx;
 }
