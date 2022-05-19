@@ -38,19 +38,17 @@ static void scan_result_cb(struct net_if *iface, int status,
 			.status = status,
 		};
 
-		net_mgmt_event_notify_with_info(NET_EVENT_SUPP_SCAN_DONE,
-				iface, &scan_status,
-				sizeof(struct wifi_status));
+		net_mgmt_event_notify_with_info(NET_EVENT_SUPP_SCAN_DONE, iface,
+						&scan_status,
+						sizeof(struct wifi_status));
 		return;
 	}
 
 	net_mgmt_event_notify_with_info(NET_EVENT_SUPP_SCAN_RESULT, iface,
-			entry, sizeof(struct wifi_scan_result));
+					entry, sizeof(struct wifi_scan_result));
 }
 
-
-static int wifi_supp_scan(uint32_t mgmt_request,
-			  struct net_if *iface,
+static int wifi_supp_scan(uint32_t mgmt_request, struct net_if *iface,
 			  void *data, size_t len)
 {
 	const struct device *dev = net_if_get_device(iface);
@@ -59,11 +57,8 @@ static int wifi_supp_scan(uint32_t mgmt_request,
 	return nvlsi_dev_ops->off_api.disp_scan(dev, scan_result_cb);
 }
 
-
-static int wifi_supp_connect(uint32_t mgmt_request,
-			     struct net_if *iface,
-			     void *data,
-			     size_t len)
+static int wifi_supp_connect(uint32_t mgmt_request, struct net_if *iface,
+			     void *data, size_t len)
 {
 	struct wifi_connect_req_params *params =
 		(struct wifi_connect_req_params *)data;
@@ -88,7 +83,6 @@ static int wifi_supp_connect(uint32_t mgmt_request,
 
 	return 0;
 }
-
 
 NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_SUPP_SCAN, wifi_supp_scan);
 NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_SUPP_CONNECT, wifi_supp_connect);

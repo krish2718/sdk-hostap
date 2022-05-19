@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 #
 
-menuconfig WPA_SUPP
+config WPA_SUPP
         bool "WPA supplicant"
         help
           WPA supplicant

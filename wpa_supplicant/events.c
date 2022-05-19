@@ -2206,7 +2206,7 @@ static int _wpa_supplicant_event_scan_results(struct wpa_supplicant *wpa_s,
 		goto scan_work_done;
 
 #ifndef CONFIG_ZEPHYR
-	// TODO : causing a crash 
+	/* TODO : causing a crash */
 	wpa_scan_results_free(scan_res);
 #endif
 

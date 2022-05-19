@@ -6,5 +6,5 @@
 
 #ifndef __MAIN_H__
 #define __MAIN_H__
-extern void start_wpa_supplicant_thread();
+extern void start_wpa_supplicant_thread(void);
 #endif /* __MAIN_H__ */

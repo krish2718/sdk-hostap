@@ -12,70 +12,54 @@
 
 K_MBOX_DEFINE(wpa_supp_mbox);
 
-static void wpa_supp_drv_mbox_msg_handler(void *eloop_ctx,
-					  void *timeout_ctx)
+static void wpa_supp_drv_mbox_msg_handler(void *eloop_ctx, void *timeout_ctx)
 {
-      struct k_mbox_msg msg;
-      struct zep_wpa_supp_mbox_msg_data mbox_msg_data;
+	struct k_mbox_msg msg;
+	struct zep_wpa_supp_mbox_msg_data mbox_msg_data;
 
-      /* Prepare to receive message */
-      msg.info = 10000;
-      msg.size = 10000;
-      msg.rx_source_thread = K_ANY;
+	/* Prepare to receive message */
+	msg.info = 10000;
+	msg.size = 10000;
+	msg.rx_source_thread = K_ANY;
 
-      k_mbox_get(&wpa_supp_mbox,
-		 &msg,
-		 &mbox_msg_data,
-		 K_FOREVER);
+	k_mbox_get(&wpa_supp_mbox, &msg, &mbox_msg_data, K_FOREVER);
 
-      mbox_msg_data.cb(mbox_msg_data.ctx,
-                       mbox_msg_data.data,
-                       0);
+	mbox_msg_data.cb(mbox_msg_data.ctx, mbox_msg_data.data, 0);
 }
 
-
-void wpa_supp_event_handler(void *ctx,
-			    void *data,
-			    void *cb)
+void wpa_supp_event_handler(void *ctx, void *data, void *cb)
 {
-        struct k_mbox_msg send_msg;
-        struct zep_wpa_supp_mbox_msg_data mbox_msg_data;
+	struct k_mbox_msg send_msg;
+	struct zep_wpa_supp_mbox_msg_data mbox_msg_data;
 
 	mbox_msg_data.ctx = ctx;
-        mbox_msg_data.data = data;
-        mbox_msg_data.cb = cb;
+	mbox_msg_data.data = data;
+	mbox_msg_data.cb = cb;
 
-        /* prepare to send message */
-        send_msg.info = sizeof(mbox_msg_data);
-        send_msg.size = sizeof(mbox_msg_data);
-        send_msg.tx_data = &mbox_msg_data;
-        send_msg.tx_block.data = NULL;
-        send_msg.tx_target_thread = K_ANY;
+	/* prepare to send message */
+	send_msg.info = sizeof(mbox_msg_data);
+	send_msg.size = sizeof(mbox_msg_data);
+	send_msg.tx_data = &mbox_msg_data;
+	send_msg.tx_block.data = NULL;
+	send_msg.tx_target_thread = K_ANY;
 
-        eloop_register_timeout(0,
-			       500,
-			       wpa_supp_drv_mbox_msg_handler,
-			       NULL,
+	eloop_register_timeout(0, 500, wpa_supp_drv_mbox_msg_handler, NULL,
 			       NULL);
 
-	k_mbox_put(&wpa_supp_mbox,
-		   &send_msg,
-		   K_FOREVER);
+	k_mbox_put(&wpa_supp_mbox, &send_msg, K_FOREVER);
 }
 
-
-static int wpa_drv_zep_abort_scan(void *priv,
-                                  u64 scan_cookie)
+static int wpa_drv_zep_abort_scan(void *priv, u64 scan_cookie)
 {
 	struct zep_drv_if_ctx *if_ctx = NULL;
-        struct zep_wpa_supp_dev_ops *dev_ops = NULL;
+	struct zep_wpa_supp_dev_ops *dev_ops = NULL;
 	int ret = -1;
 
-        if_ctx = priv;
+	if_ctx = priv;
 
 	dev_ops = (struct zep_wpa_supp_dev_ops *)if_ctx->dev_ctx->api;
 
-	if(!dev_ops->scan_abort) {
+	if (!dev_ops->scan_abort) {
 		printk("%s: No op registered for scan_abort\n", __func__);
 		goto out;
 	}
@@ -85,7 +69,6 @@ out:
 	return ret;
 }
 
-
 /**
  * wpa_drv_zep_scan_timeout - Scan timeout to report scan completion
  * @eloop_ctx: Driver private data
@@ -94,8 +77,7 @@ out:
  * This function can be used as registered timeout when starting a scan to
  * generate a scan completed event if the driver does not report this.
  */
-void wpa_drv_zep_scan_timeout(void *eloop_ctx,
-	       		      void *timeout_ctx)
+void wpa_drv_zep_scan_timeout(void *eloop_ctx, void *timeout_ctx)
 {
 	struct zep_drv_if_ctx *if_ctx = NULL;
 
@@ -103,40 +85,32 @@ void wpa_drv_zep_scan_timeout(void *eloop_ctx,
 
 	printk("%s: Scan timeout - try to abort it\n", __func__);
 
-	if (wpa_drv_zep_abort_scan(if_ctx, 0) == 0)
+	if (wpa_drv_zep_abort_scan(if_ctx, 0) == 0) {
 		return;
+	}
 }
-
 
 void wpa_drv_zep_event_proc_scan_start(struct zep_drv_if_ctx *if_ctx)
 {
-	wpa_supplicant_event(if_ctx->supp_if_ctx,
-		       	     EVENT_SCAN_STARTED,
-			     NULL);
+	wpa_supplicant_event(if_ctx->supp_if_ctx, EVENT_SCAN_STARTED, NULL);
 }
-
 
 void wpa_drv_zep_event_proc_scan_done(struct zep_drv_if_ctx *if_ctx,
-			              union wpa_event_data *event)
+				      union wpa_event_data *event)
 {
-	eloop_cancel_timeout(wpa_drv_zep_scan_timeout,
-		       	     if_ctx,
+	eloop_cancel_timeout(wpa_drv_zep_scan_timeout, if_ctx,
 			     if_ctx->supp_if_ctx);
 
-	wpa_supplicant_event(if_ctx->supp_if_ctx,
-		       	     EVENT_SCAN_RESULTS,
-			     event);
+	wpa_supplicant_event(if_ctx->supp_if_ctx, EVENT_SCAN_RESULTS, event);
 }
 
-
 void wpa_drv_zep_event_proc_scan_res(struct zep_drv_if_ctx *if_ctx,
-				     struct wpa_scan_res *r,
-				     bool more_res)
+				     struct wpa_scan_res *r, bool more_res)
 {
 	struct wpa_scan_res **tmp = NULL;
 
 	tmp = os_realloc_array(if_ctx->scan_res2->res,
-		       	       if_ctx->scan_res2->num + 1,
+			       if_ctx->scan_res2->num + 1,
 			       sizeof(struct wpa_scan_res *));
 
 	if (!tmp) {
@@ -145,83 +119,70 @@ void wpa_drv_zep_event_proc_scan_res(struct zep_drv_if_ctx *if_ctx,
 	}
 
 	tmp[if_ctx->scan_res2->num++] = r;
-	
+
 	if_ctx->scan_res2->res = tmp;
 
 	if_ctx->scan_res2_get_in_prog = more_res;
 }
 
-
 void wpa_drv_zep_event_proc_auth_resp(struct zep_drv_if_ctx *if_ctx,
 				      union wpa_event_data *event)
 {
-	wpa_supplicant_event(if_ctx->supp_if_ctx,
-		       	     EVENT_AUTH,
-			     event);
+	wpa_supplicant_event(if_ctx->supp_if_ctx, EVENT_AUTH, event);
 }
 
-
 void wpa_drv_zep_event_proc_assoc_resp(struct zep_drv_if_ctx *if_ctx,
-				      union wpa_event_data *event,
-				      unsigned int status)
+				       union wpa_event_data *event,
+				       unsigned int status)
 {
-	if (status != WLAN_STATUS_SUCCESS)
-		wpa_supplicant_event(if_ctx->supp_if_ctx,
-				     EVENT_ASSOC_REJECT,
+	if (status != WLAN_STATUS_SUCCESS) {
+		wpa_supplicant_event(if_ctx->supp_if_ctx, EVENT_ASSOC_REJECT,
 				     event);
-	else {
+	} else {
 		if_ctx->associated = true;
 		os_memcpy(if_ctx->bssid, event->assoc_info.addr, ETH_ALEN);
 
-		wpa_supplicant_event(if_ctx->supp_if_ctx,
-				     EVENT_ASSOC,
-				     event);
-        }
+		wpa_supplicant_event(if_ctx->supp_if_ctx, EVENT_ASSOC, event);
+	}
 }
-
 
 void wpa_drv_zep_event_proc_deauth(struct zep_drv_if_ctx *if_ctx,
 				   union wpa_event_data *event)
 {
-	wpa_supplicant_event(if_ctx->supp_if_ctx,
-		       	     EVENT_DEAUTH,
-			     event);
+	wpa_supplicant_event(if_ctx->supp_if_ctx, EVENT_DEAUTH, event);
 }
-
 
 void wpa_drv_zep_event_proc_disassoc(struct zep_drv_if_ctx *if_ctx,
 				     union wpa_event_data *event)
 {
-	wpa_supplicant_event(if_ctx->supp_if_ctx,
-		       	     EVENT_DISASSOC,
-			     event);
+	wpa_supplicant_event(if_ctx->supp_if_ctx, EVENT_DISASSOC, event);
 }
 
-static void * wpa_drv_zep_global_init(void *ctx)
+static void *wpa_drv_zep_global_init(void *ctx)
 {
 	struct zep_drv_ctx *drv_ctx = NULL;
 
 	drv_ctx = os_zalloc(sizeof(*drv_ctx));
 
-	if (!drv_ctx)
+	if (!drv_ctx) {
 		return NULL;
+	}
 
 	drv_ctx->supp_ctx = ctx;
 
 	return drv_ctx;
 }
 
-
 static void wpa_drv_zep_global_deinit(void *priv)
 {
 	struct zep_drv_ctx *drv_ctx = priv;
 
-	if (!drv_ctx)
+	if (!drv_ctx) {
 		return;
+	}
 
 	os_free(drv_ctx);
 }
-
 
 /**
  * wpa_driver_zep_init - Initialize Zephyr driver interface
@@ -232,9 +193,7 @@ static void wpa_drv_zep_global_deinit(void *priv)
  *
  * Returns: Pointer to private data, %NULL on failure
  */
-static void *wpa_drv_zep_init(void *ctx,
-	       		      const char *ifname,
-			      void *global_priv)
+static void *wpa_drv_zep_init(void *ctx, const char *ifname, void *global_priv)
 {
 	struct zep_drv_if_ctx *if_ctx = NULL;
 	const struct zep_wpa_supp_dev_ops *dev_ops = NULL;
@@ -242,9 +201,10 @@ static void *wpa_drv_zep_init(void *ctx,
 
 	if_ctx = os_zalloc(sizeof(*if_ctx));
 
-	if (if_ctx == NULL)
+	if (if_ctx == NULL) {
 		return NULL;
- 
+	}
+
 	if_ctx->supp_if_ctx = ctx;
 
 	if_ctx->dev_ctx = net_if_get_device(net_if_get_default());
@@ -252,14 +212,12 @@ static void *wpa_drv_zep_init(void *ctx,
 
 	dev_ops = if_ctx->dev_ctx->api;
 
-	if(!dev_ops->init) {
+	if (!dev_ops->init) {
 		printk("%s: No op registered for init\n", __func__);
 		goto out;
 	}
 
-	os_memset(&callbk_fns,
-		  0,
-		  sizeof(callbk_fns));
+	os_memset(&callbk_fns, 0, sizeof(callbk_fns));
 
 	callbk_fns.scan_start = wpa_drv_zep_event_proc_scan_start;
 	callbk_fns.scan_done = wpa_drv_zep_event_proc_scan_done;
@@ -269,13 +227,10 @@ static void *wpa_drv_zep_init(void *ctx,
 	callbk_fns.deauth = wpa_drv_zep_event_proc_deauth;
 	callbk_fns.disassoc = wpa_drv_zep_event_proc_disassoc;
 
-	if_ctx->dev_priv = dev_ops->init(if_ctx,
-					 ifname,
-					 &callbk_fns);
+	if_ctx->dev_priv = dev_ops->init(if_ctx, ifname, &callbk_fns);
 out:
 	return if_ctx;
 }
-
 
 static void wpa_drv_zep_deinit(void *priv)
 {
@@ -286,7 +241,7 @@ static void wpa_drv_zep_deinit(void *priv)
 
 	dev_ops = (struct zep_wpa_supp_dev_ops *)if_ctx->dev_ctx->api;
 
-	if(!dev_ops->deinit) {
+	if (!dev_ops->deinit) {
 		printk("%s: No op registered for deinit\n", __func__);
 		return;
 	}
@@ -296,9 +251,7 @@ static void wpa_drv_zep_deinit(void *priv)
 	os_free(if_ctx);
 }
 
-
-static int wpa_drv_zep_scan2(void *priv,
-			     struct wpa_driver_scan_params *params)
+static int wpa_drv_zep_scan2(void *priv, struct wpa_driver_scan_params *params)
 {
 	struct zep_drv_if_ctx *if_ctx = NULL;
 	const struct zep_wpa_supp_dev_ops *dev_ops = NULL;
@@ -314,13 +267,12 @@ static int wpa_drv_zep_scan2(void *priv,
 
 	dev_ops = if_ctx->dev_ctx->api;
 
-	if(!dev_ops->scan2) {
+	if (!dev_ops->scan2) {
 		printk("%s: No op registered for scan2\n", __func__);
 		goto out;
 	}
 
-	ret = dev_ops->scan2(if_ctx->dev_priv,
-		             params);
+	ret = dev_ops->scan2(if_ctx->dev_priv, params);
 
 	if (ret) {
 		printk("%s: scan2 op failed\n", __func__);
@@ -333,24 +285,20 @@ static int wpa_drv_zep_scan2(void *priv,
 	 */
 	timeout = 30;
 
-	printk("%s: Scan requested - scan timeout %d seconds \n", __func__, timeout);
+	printk("%s: Scan requested - scan timeout %d seconds\n", __func__,
+	       timeout);
 
-	eloop_cancel_timeout(wpa_drv_zep_scan_timeout,
-		       	     if_ctx,
+	eloop_cancel_timeout(wpa_drv_zep_scan_timeout, if_ctx,
 			     if_ctx->supp_if_ctx);
-	
-	eloop_register_timeout(timeout,
-		       	       0,
-			       wpa_drv_zep_scan_timeout,
-			       if_ctx,
+
+	eloop_register_timeout(timeout, 0, wpa_drv_zep_scan_timeout, if_ctx,
 			       if_ctx->supp_if_ctx);
-	
+
 	ret = 0;
 
 out:
 	return ret;
 }
-
 
 /**
  * wpa_drv_zep_get_scan_results2 - Fetch the latest scan results
@@ -360,28 +308,29 @@ out:
 struct wpa_scan_results *wpa_drv_zep_get_scan_results2(void *priv)
 {
 	struct zep_drv_if_ctx *if_ctx = NULL;
-        const struct zep_wpa_supp_dev_ops *dev_ops = NULL;
-        unsigned int i = 0;
+	const struct zep_wpa_supp_dev_ops *dev_ops = NULL;
+	unsigned int i = 0;
 	int ret = -1;
 
 	if (!priv) {
 		printk("%s: Invalid params\n", __func__);
 		goto out;
 	}
-	
+
 	if_ctx = priv;
 
 	dev_ops = if_ctx->dev_ctx->api;
 
-	if(!dev_ops->get_scan_results2) {
+	if (!dev_ops->get_scan_results2) {
 		printk("%s: No op registered for scan2\n", __func__);
 		goto out;
 	}
 
 	if_ctx->scan_res2 = os_zalloc(sizeof(*if_ctx->scan_res2));
 
-	if (!if_ctx->scan_res2)
-		goto out;		       
+	if (!if_ctx->scan_res2) {
+		goto out;
+	}
 
 	ret = dev_ops->get_scan_results2(if_ctx->dev_priv);
 
@@ -394,7 +343,7 @@ struct wpa_scan_results *wpa_drv_zep_get_scan_results2(void *priv)
 
 	/* Wait for the device to populate the scan results */
 	while ((if_ctx->scan_res2_get_in_prog) && (i < 100)) {
-                k_yield();
+		k_yield();
 		os_sleep(1, 0);
 		i++;
 	}
@@ -418,8 +367,7 @@ out:
 }
 
 #ifdef notyet
-static int wpa_drv_zep_deauthenticate(void *priv,
-	       			      const u8 *addr,
+static int wpa_drv_zep_deauthenticate(void *priv, const u8 *addr,
 				      u16 reason_code)
 {
 	struct zep_drv_if_ctx *if_ctx = NULL;
@@ -430,14 +378,12 @@ static int wpa_drv_zep_deauthenticate(void *priv,
 		printk("%s: Invalid params\n", __func__);
 		goto out;
 	}
-	
+
 	if_ctx = priv;
 
 	dev_ops = (struct wpa_supp_dev_ops *)if_ctx->dev->api;
 
-	ret = dev_ops->deauthenticate(if_ctx->dev_priv,
-				      addr,
-				      reason_code);
+	ret = dev_ops->deauthenticate(if_ctx->dev_priv, addr, reason_code);
 
 	if (ret) {
 		printk("%s: deauthenticate op failed\n", __func__);
@@ -450,26 +396,23 @@ out:
 }
 #endif /* notyet */
 
-
-
 static int wpa_drv_zep_authenticate(void *priv,
 				    struct wpa_driver_auth_params *params)
 {
 	struct zep_drv_if_ctx *if_ctx = NULL;
-        const struct zep_wpa_supp_dev_ops *dev_ops = NULL;
+	const struct zep_wpa_supp_dev_ops *dev_ops = NULL;
 	int ret = -1;
 
 	if ((!priv) || (!params)) {
 		printk("%s: Invalid params\n", __func__);
 		goto out;
 	}
-	
+
 	if_ctx = priv;
 
-        dev_ops = if_ctx->dev_ctx->api;
+	dev_ops = if_ctx->dev_ctx->api;
 
-	ret = dev_ops->authenticate(if_ctx->dev_priv,
-				    params);
+	ret = dev_ops->authenticate(if_ctx->dev_priv, params);
 
 	if (ret) {
 		printk("%s: authenticate op failed\n", __func__);
@@ -481,25 +424,23 @@ out:
 	return ret;
 }
 
-
 static int wpa_drv_zep_associate(void *priv,
-	       			 struct wpa_driver_associate_params *params)
+				 struct wpa_driver_associate_params *params)
 {
 	struct zep_drv_if_ctx *if_ctx = NULL;
-        const struct zep_wpa_supp_dev_ops *dev_ops = NULL;
+	const struct zep_wpa_supp_dev_ops *dev_ops = NULL;
 	int ret = -1;
 
 	if ((!priv) || (!params)) {
 		printk("%s: Invalid params\n", __func__);
 		goto out;
 	}
-	
+
 	if_ctx = priv;
 
-        dev_ops = if_ctx->dev_ctx->api;
+	dev_ops = if_ctx->dev_ctx->api;
 
-	ret = dev_ops->associate(if_ctx->dev_priv,
-				 params);
+	ret = dev_ops->associate(if_ctx->dev_priv, params);
 
 	if (ret) {
 		printk("%s: associate op failed\n", __func__);
@@ -511,17 +452,10 @@ out:
 	return ret;
 }
 
-
 #ifdef notyet
-static int wpa_drv_zep_set_key(const char *ifname,
-	       		       void *priv,
-			       enum wpa_alg alg,
-			       const u8 *addr,
-			       int key_idx,
-			       int set_tx,
-			       const u8 *seq,
-			       size_t seq_len,
-			       const u8 *key,
+static int wpa_drv_zep_set_key(const char *ifname, void *priv, enum wpa_alg alg,
+			       const u8 *addr, int key_idx, int set_tx,
+			       const u8 *seq, size_t seq_len, const u8 *key,
 			       size_t key_len)
 {
 	struct zep_drv_if_ctx *if_ctx = NULL;
@@ -532,21 +466,13 @@ static int wpa_drv_zep_set_key(const char *ifname,
 		printk("%s: Invalid params\n", __func__);
 		goto out;
 	}
-	
+
 	if_ctx = priv;
 
 	dev_ops = (struct wpa_supp_dev_ops *)if_ctx->dev->api;
 
-	ret = dev_ops->set_key(if_ctx->dev_priv,
-			       ifname,
-			       alg,
-			       addr,
-			       key_idx,
-			       set_tx,
-			       seq,
-			       seq_len,
-			       key,
-			       key_len);
+	ret = dev_ops->set_key(if_ctx->dev_priv, ifname, alg, addr, key_idx,
+			       set_tx, seq, seq_len, key, key_len);
 
 	if (ret) {
 		printk("%s: set_key op failed\n", __func__);
@@ -559,16 +485,13 @@ out:
 }
 #endif /* notyet */
 
-
-static int wpa_drv_zep_get_capa(void *priv,
-				struct wpa_driver_capa *capa)
+static int wpa_drv_zep_get_capa(void *priv, struct wpa_driver_capa *capa)
 {
 	/* Use SME */
 	capa->flags |= WPA_DRIVER_FLAGS_SME;
 
 	return 0;
 }
-
 
 static int wpa_drv_zep_get_bssid(void *priv, u8 *bssid)
 {
@@ -590,8 +513,8 @@ static int wpa_drv_zep_set_supp_port(void *priv, int authorized)
 
 	dev_ops = if_ctx->dev_ctx->api;
 
-	return dev_ops->set_supp_port(if_ctx->dev_priv, 
-			authorized, if_ctx->bssid);
+	return dev_ops->set_supp_port(if_ctx->dev_priv, authorized,
+				      if_ctx->bssid);
 }
 
 const struct wpa_driver_ops wpa_driver_zep_ops = {
@@ -604,10 +527,10 @@ const struct wpa_driver_ops wpa_driver_zep_ops = {
 	.scan2 = wpa_drv_zep_scan2,
 	.abort_scan = wpa_drv_zep_abort_scan,
 	.get_scan_results2 = wpa_drv_zep_get_scan_results2,
-        .authenticate = wpa_drv_zep_authenticate,
-        .associate = wpa_drv_zep_associate,
-        .get_capa = wpa_drv_zep_get_capa,
-        .get_bssid = wpa_drv_zep_get_bssid,
+	.authenticate = wpa_drv_zep_authenticate,
+	.associate = wpa_drv_zep_associate,
+	.get_capa = wpa_drv_zep_get_capa,
+	.get_bssid = wpa_drv_zep_get_bssid,
 	.set_supp_port = wpa_drv_zep_set_supp_port,
 #ifdef notyet
 	.deauthenticate = wpa_drv_zep_deauthenticate,

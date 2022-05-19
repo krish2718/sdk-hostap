@@ -306,7 +306,7 @@ static inline void * os_calloc(size_t nmemb, size_t size)
  *
  * Caller is responsible for freeing the returned buffer with os_free().
  */
-char * os_strdup(const char *s);
+char *os_strdup(const char *s);
 
 /**
  * os_strcasecmp - Compare two strings ignoring case
@@ -518,7 +518,7 @@ char * os_strdup(const char *s);
 #ifndef os_strdup
 #ifdef _MSC_VER
 #define os_strdup(s) _strdup(s)
-#elif ! defined(CONFIG_ZEPHYR)
+#elif !defined(CONFIG_ZEPHYR)
 #define os_strdup(s) strdup(s)
 #endif
 #endif
@@ -543,14 +543,14 @@ char * os_strdup(const char *s);
 #ifndef os_strcasecmp
 #ifdef _MSC_VER
 #define os_strcasecmp(s1, s2) _stricmp((s1), (s2))
-#elif ! defined(CONFIG_ZEPHYR)
+#elif !defined(CONFIG_ZEPHYR)
 #define os_strcasecmp(s1, s2) strcasecmp((s1), (s2))
 #endif
 #endif
 #ifndef os_strncasecmp
 #ifdef _MSC_VER
 #define os_strncasecmp(s1, s2, n) _strnicmp((s1), (s2), (n))
-#elif ! defined(CONFIG_ZEPHYR)
+#elif !defined(CONFIG_ZEPHYR)
 #define os_strncasecmp(s1, s2, n) strncasecmp((s1), (s2), (n))
 #endif
 #endif

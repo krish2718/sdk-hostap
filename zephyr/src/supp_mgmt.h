@@ -11,61 +11,57 @@
 #include <net/net_mgmt.h>
 #include <net/wifi.h>
 
-#define _NET_SUPP_LAYER	NET_MGMT_LAYER_L2
+#define _NET_SUPP_LAYER NET_MGMT_LAYER_L2
 /* TODO: See if this needs to be assigned a different code */
-#define _NET_SUPP_CODE	0x157 					
-#define _NET_SUPP_BASE	(NET_MGMT_IFACE_BIT |			\
-			 NET_MGMT_LAYER(_NET_SUPP_LAYER) |	\
-			 NET_MGMT_LAYER_CODE(_NET_SUPP_CODE))
-#define _NET_SUPP_EVENT	(_NET_SUPP_BASE | NET_MGMT_EVENT_BIT)
+#define _NET_SUPP_CODE 0x157
+#define _NET_SUPP_BASE                                                         \
+	(NET_MGMT_IFACE_BIT | NET_MGMT_LAYER(_NET_SUPP_LAYER) |                \
+	 NET_MGMT_LAYER_CODE(_NET_SUPP_CODE))
+#define _NET_SUPP_EVENT (_NET_SUPP_BASE | NET_MGMT_EVENT_BIT)
 
 /* Request a Wi-Fi scan */
-#define NET_REQUEST_SUPP_SCAN					\
-	(_NET_SUPP_BASE | NET_REQUEST_SUPP_CMD_SCAN)
+#define NET_REQUEST_SUPP_SCAN (_NET_SUPP_BASE | NET_REQUEST_SUPP_CMD_SCAN)
 
 NET_MGMT_DEFINE_REQUEST_HANDLER(NET_REQUEST_SUPP_SCAN);
 
 /* Request a connection to a specified SSID */
-#define NET_REQUEST_SUPP_CONNECT				\
-	(_NET_SUPP_BASE | NET_REQUEST_SUPP_CMD_CONNECT)
+#define NET_REQUEST_SUPP_CONNECT (_NET_SUPP_BASE | NET_REQUEST_SUPP_CMD_CONNECT)
 
 NET_MGMT_DEFINE_REQUEST_HANDLER(NET_REQUEST_SUPP_CONNECT);
 
 #ifdef notyet
-#define NET_REQUEST_SUPP_DISCONNECT				\
+#define NET_REQUEST_SUPP_DISCONNECT                                            \
 	(_NET_SUPP_BASE | NET_REQUEST_SUPP_CMD_DISCONNECT)
 
 NET_MGMT_DEFINE_REQUEST_HANDLER(NET_REQUEST_SUPP_DISCONNECT);
 
-#define NET_REQUEST_SUPP_AP_ENABLE				\
+#define NET_REQUEST_SUPP_AP_ENABLE                                             \
 	(_NET_SUPP_BASE | NET_REQUEST_SUPP_CMD_AP_ENABLE)
 
 NET_MGMT_DEFINE_REQUEST_HANDLER(NET_REQUEST_SUPP_AP_ENABLE);
 
-#define NET_REQUEST_SUPP_AP_DISABLE				\
+#define NET_REQUEST_SUPP_AP_DISABLE                                            \
 	(_NET_SUPP_BASE | NET_REQUEST_SUPP_CMD_AP_DISABLE)
 
 NET_MGMT_DEFINE_REQUEST_HANDLER(NET_REQUEST_SUPP_AP_DISABLE);
 #endif /* notyet */
 
 /* Scan result event */
-#define NET_EVENT_SUPP_SCAN_RESULT				\
+#define NET_EVENT_SUPP_SCAN_RESULT                                             \
 	(_NET_SUPP_EVENT | NET_EVENT_SUPP_CMD_SCAN_RESULT)
 
 /* Event to indicate that a scan is completed */
-#define NET_EVENT_SUPP_SCAN_DONE				\
+#define NET_EVENT_SUPP_SCAN_DONE                                               \
 	(_NET_SUPP_EVENT | NET_EVENT_SUPP_CMD_SCAN_DONE)
 
 /* Event to indicate the status of a connection request */
-#define NET_EVENT_SUPP_CONNECT_RESULT				\
+#define NET_EVENT_SUPP_CONNECT_RESULT                                          \
 	(_NET_SUPP_EVENT | NET_EVENT_SUPP_CMD_CONNECT_RESULT)
 
 #ifdef notyet
-#define NET_EVENT_SUPP_DISCONNECT_RESULT			\
+#define NET_EVENT_SUPP_DISCONNECT_RESULT                                       \
 	(_NET_SUPP_EVENT | NET_EVENT_SUPP_CMD_DISCONNECT_RESULT)
 #endif /* notyet */
-
-
 
 /**
  * enum net_request_supp_cmd - Network management API commands for WPA supplicant.
@@ -84,7 +80,6 @@ enum net_request_supp_cmd {
 #endif /* notyet */
 };
 
-
 /**
  * enum net_event_supp_cmd - Network management API events from WPA supplicant.
  * @NET_EVENT_SUPP_CMD_SCAN_RESULT: Scan result event.
@@ -101,6 +96,5 @@ enum net_event_supp_cmd {
 	NET_EVENT_SUPP_CMD_DISCONNECT_RESULT,
 #endif /* notyet */
 };
-
 
 #endif /* __SUPP_MGMT_H__ */

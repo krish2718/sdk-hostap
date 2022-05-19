@@ -36,7 +36,7 @@ extern void start_wpa_supplicant(void);
 static struct k_sem quit_lock;
 
 K_THREAD_DEFINE(wpa_s_tid, MY_STACK_SIZE, start_wpa_supplicant, NULL, NULL,
-				NULL, MY_PRIORITY, 0, 0);
+		NULL, MY_PRIORITY, 0, 0);
 
 #ifdef CONFIG_MATCH_IFACE
 static int wpa_supplicant_init_match(struct wpa_global *global)
@@ -45,13 +45,12 @@ static int wpa_supplicant_init_match(struct wpa_global *global)
 	 * The assumption is that the first driver is the primary driver and
 	 * will handle the arrival / departure of interfaces.
 	 */
-	if (wpa_drivers[0]->global_init && !global->drv_priv[0])
-	{
+	if (wpa_drivers[0]->global_init && !global->drv_priv[0]) {
 		global->drv_priv[0] = wpa_drivers[0]->global_init(global);
-		if (!global->drv_priv[0])
-		{
-			wpa_printf(MSG_ERROR, "Failed to initialize driver '%s'",
-					   wpa_drivers[0]->name);
+		if (!global->drv_priv[0]) {
+			wpa_printf(MSG_ERROR,
+				   "Failed to initialize driver '%s'",
+				   wpa_drivers[0]->name);
 			return -1;
 		}
 	}
@@ -74,16 +73,17 @@ static void iface_cb(struct net_if *iface, void *user_data)
 	os_memcpy(own_addr, link_addr->addr, link_addr->len);
 	ifname = os_strdup(iface->if_dev->dev->name);
 
-	wpa_printf(MSG_INFO,
-			   "iface_cb: iface %s ifindex %d %02x:%02x:%02x:%02x:%02x:%02x",
-			   ifname, ifindex, own_addr[0], own_addr[1], own_addr[2],
-			   own_addr[3], own_addr[4], own_addr[5]);
+	wpa_printf(
+		MSG_INFO,
+		"iface_cb: iface %s ifindex %d %02x:%02x:%02x:%02x:%02x:%02x",
+		ifname, ifindex, own_addr[0], own_addr[1], own_addr[2],
+		own_addr[3], own_addr[4], own_addr[5]);
 
-        /* TODO : device has no name */
-        ifaces[0].ifname = "lo";
+	/* TODO : device has no name */
+	ifaces[0].ifname = "lo";
 }
 
-void start_wpa_supplicant_thread()
+void start_wpa_supplicant_thread(void)
 {
 	k_sem_init(&quit_lock, 0, K_SEM_MAX_LIMIT);
 
@@ -106,35 +106,32 @@ void start_wpa_supplicant(void)
 	params.wpa_debug_level = MSG_INFO;
 
 	iface = ifaces = os_zalloc(sizeof(struct wpa_interface));
-	if (ifaces == NULL)
+	if (ifaces == NULL) {
 		return;
+	}
 	iface_count = 1;
 
 	exitcode = 0;
 	global = wpa_supplicant_init(&params);
-	if (global == NULL)
-	{
+	if (global == NULL) {
 		wpa_printf(MSG_ERROR, "Failed to initialize wpa_supplicant");
 		exitcode = -1;
 		goto out;
-	}
-	else
-	{
-		wpa_printf(MSG_INFO,
-				   "Successfully initialized "
-				   "wpa_supplicant");
+	} else {
+		wpa_printf(MSG_INFO, "Successfully initialized "
+				     "wpa_supplicant");
 	}
 
-	if (fst_global_init())
-	{
+	if (fst_global_init()) {
 		wpa_printf(MSG_ERROR, "Failed to initialize FST");
 		exitcode = -1;
 		goto out;
 	}
 
 #if defined(CONFIG_FST) && defined(CONFIG_CTRL_IFACE)
-	if (!fst_global_add_ctrl(fst_ctrl_cli))
+	if (!fst_global_add_ctrl(fst_ctrl_cli)) {
 		wpa_printf(MSG_WARNING, "Failed to add CLI FST ctrl");
+	}
 #endif
 
 	net_if_foreach(iface_cb, ifaces);
@@ -143,28 +140,27 @@ void start_wpa_supplicant(void)
 	params.ctrl_interface = "test_ctrl";
 	wpa_printf(MSG_INFO, "Using interface %s\n", ifaces[0].ifname);
 
-	for (i = 0; exitcode == 0 && i < iface_count; i++)
-	{
+	for (i = 0; exitcode == 0 && i < iface_count; i++) {
 		struct wpa_supplicant *wpa_s;
 
-		if ((ifaces[i].confname == NULL && ifaces[i].ctrl_interface == NULL) ||
-			ifaces[i].ifname == NULL)
-		{
+		if ((ifaces[i].confname == NULL &&
+		     ifaces[i].ctrl_interface == NULL) ||
+		    ifaces[i].ifname == NULL) {
 			if (iface_count == 1 && (params.ctrl_interface ||
 #ifdef CONFIG_MATCH_IFACE
-									 params.match_iface_count ||
+						 params.match_iface_count ||
 #endif /* CONFIG_MATCH_IFACE */
-									 params.dbus_ctrl_interface))
+						 params.dbus_ctrl_interface))
 				break;
-			wpa_printf(MSG_INFO, "Failed to initialize interface %d\n", i);
+			wpa_printf(MSG_INFO,
+				   "Failed to initialize interface %d\n", i);
 			exitcode = -1;
 			break;
 		}
 		wpa_printf(MSG_INFO, "Initializing interface %d: %s\n", i,
-				   ifaces[i].ifname);
+			   ifaces[i].ifname);
 		wpa_s = wpa_supplicant_add_iface(global, &ifaces[i], NULL);
-		if (wpa_s == NULL)
-		{
+		if (wpa_s == NULL) {
 			exitcode = -1;
 			break;
 		}
@@ -172,12 +168,14 @@ void start_wpa_supplicant(void)
 	}
 
 #ifdef CONFIG_MATCH_IFACE
-	if (exitcode == 0)
+	if (exitcode == 0) {
 		exitcode = wpa_supplicant_init_match(global);
+	}
 #endif /* CONFIG_MATCH_IFACE */
 
-	if (exitcode == 0)
+	if (exitcode == 0) {
 		exitcode = wpa_supplicant_run(global);
+	}
 
 	wpa_supplicant_deinit(global);
 

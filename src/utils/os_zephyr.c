@@ -1,14 +1,7 @@
 /*
- * wpa_supplicant/hostapd / Empty OS specific functions
- * Copyright (c) 2005-2006, Jouni Malinen <j@w1.fi>
+ * Copyright (c) 2022 Nordic Semiconductor ASA
  *
- * This software may be distributed under the terms of the BSD license.
- * See README for more details.
- *
- * This file can be used as a starting point when adding a new OS target. The
- * functions here do not really work as-is since they are just empty or only
- * return an error value. os_internal.c can be used as another starting point
- * or reference since it has example implementation of many of these functions.
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
 #include "includes.h"
@@ -19,16 +12,19 @@
 
 void os_sleep(os_time_t sec, os_time_t usec)
 {
-	if (sec)
+	if (sec) {
 		k_sleep(K_SECONDS(sec));
-	if (usec)
+	}
+	if (usec) {
 		k_usleep(usec);
+	}
 }
 
 int os_get_time(struct os_time *t)
 {
 	int res;
 	struct timeval tv;
+
 	res = gettimeofday(&tv, NULL);
 	t->sec = tv.tv_sec;
 	t->usec = tv.tv_usec;
@@ -47,20 +43,18 @@ int os_get_reltime(struct os_reltime *t)
 	struct timespec ts;
 	int res;
 
-	if (TEST_FAIL())
+	if (TEST_FAIL()) {
 		return -1;
+	}
 
-	while (1)
-	{
+	while (1) {
 		res = clock_gettime(clock_id, &ts);
-		if (res == 0)
-		{
+		if (res == 0) {
 			t->sec = ts.tv_sec;
 			t->usec = ts.tv_nsec / 1000;
 			return 0;
 		}
-		switch (clock_id)
-		{
+		switch (clock_id) {
 #ifdef CLOCK_BOOTTIME
 		case CLOCK_BOOTTIME:
 			clock_id = CLOCK_MONOTONIC;
@@ -78,16 +72,17 @@ int os_get_reltime(struct os_reltime *t)
 }
 
 int os_mktime(int year, int month, int day, int hour, int min, int sec,
-			  os_time_t *t)
+	      os_time_t *t)
 {
 	struct tm tm, *tm1;
 	time_t t_local, t1, t2;
 	os_time_t tz_offset;
 
 	if (year < 1970 || month < 1 || month > 12 || day < 1 || day > 31 ||
-		hour < 0 || hour > 23 || min < 0 || min > 59 || sec < 0 ||
-		sec > 60)
+	    hour < 0 || hour > 23 || min < 0 || min > 59 || sec < 0 ||
+	    sec > 60) {
 		return -1;
+	}
 
 	memset(&tm, 0, sizeof(tm));
 	tm.tm_year = year - 1900;
@@ -101,20 +96,18 @@ int os_mktime(int year, int month, int day, int hour, int min, int sec,
 
 	/* figure out offset to UTC */
 	tm1 = localtime(&t_local);
-	if (tm1)
-	{
+	if (tm1) {
 		t1 = mktime(tm1);
 		tm1 = gmtime(&t_local);
-		if (tm1)
-		{
+		if (tm1) {
 			t2 = mktime(tm1);
 			tz_offset = t2 - t1;
-		}
-		else
+		} else {
 			tz_offset = 0;
-	}
-	else
+		}
+	} else {
 		tz_offset = 0;
+	}
 
 	*t = (os_time_t)t_local - tz_offset;
 	return 0;
@@ -126,8 +119,9 @@ int os_gmtime(os_time_t t, struct os_tm *tm)
 	time_t t2 = t;
 
 	tm2 = gmtime(&t2);
-	if (tm2 == NULL)
+	if (tm2 == NULL) {
 		return -1;
+	}
 	tm->sec = tm2->tm_sec;
 	tm->min = tm2->tm_min;
 	tm->hour = tm2->tm_hour;
@@ -196,10 +190,12 @@ char *os_strdup(const char *s)
 {
 	size_t len;
 	char *d;
+
 	len = os_strlen(s);
 	d = os_malloc(len + 1);
-	if (d == NULL)
+	if (d == NULL) {
 		return NULL;
+	}
 	os_memcpy(d, s, len);
 	d[len] = '\0';
 	return d;
@@ -209,8 +205,9 @@ void *os_memdup(const void *src, size_t len)
 {
 	void *r = os_malloc(len);
 
-	if (r && src)
+	if (r && src) {
 		os_memcpy(r, src, len);
+	}
 	return r;
 }
 
@@ -224,23 +221,23 @@ size_t os_strlcpy(char *dest, const char *src, size_t siz)
 	const char *s = src;
 	size_t left = siz;
 
-	if (left)
-	{
+	if (left) {
 		/* Copy string up to the maximum size of the dest buffer */
-		while (--left != 0)
-		{
-			if ((*dest++ = *s++) == '\0')
+		while (--left != 0) {
+			if ((*dest++ = *s++) == '\0') {
 				break;
+			}
 		}
 	}
 
-	if (left == 0)
-	{
+	if (left == 0) {
 		/* Not enough room for the string; force NUL-termination */
-		if (siz != 0)
+		if (siz != 0) {
 			*dest = '\0';
-		while (*s++)
+		}
+		while (*s++) {
 			; /* determine total src string length */
+		}
 	}
 
 	return s - src - 1;
@@ -252,13 +249,14 @@ int os_exec(const char *program, const char *arg, int wait_completion)
 }
 
 /* Duplicate S, returning an identical malloc'd string.  */
-char *
-__strdup(const char *s)
+char *__strdup(const char *s)
 {
 	size_t len = strlen(s) + 1;
 	void *new = malloc(len);
-	if (new == NULL)
+
+	if (new == NULL) {
 		return NULL;
+	}
 	return (char *)memcpy(new, s, len);
 }
 
@@ -270,7 +268,6 @@ int os_strcasecmp(const char *s1, const char *s2)
 	 */
 	return os_strcmp(s1, s2);
 }
-
 
 int os_strncasecmp(const char *s1, const char *s2, size_t n)
 {
