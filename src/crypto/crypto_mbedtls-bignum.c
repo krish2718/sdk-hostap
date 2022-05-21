@@ -55,6 +55,9 @@ int crypto_bignum_rand(struct crypto_bignum *r, const struct crypto_bignum *m)
 
 struct crypto_bignum *crypto_bignum_init_uint(unsigned int val)
 {
+	// MbedTLS works with BigEndian format
+	val = host_to_be32(val);
+
 	return crypto_bignum_init_set((const u8 *)&val, sizeof(val));
 }
 
