@@ -66,12 +66,8 @@ static int wifi_supp_connect(uint32_t mgmt_request, struct net_if *iface,
 	const struct device *dev = net_if_get_device(iface);
 	const struct img_rpu_dev_ops_zep *nvlsi_dev_ops = dev->api;
 #endif /* notyet */
-	// TODO: Make this user configurable from shell
-	bool wpa3 = false;
-	bool psk_256 = true;
-	bool pmf = true;
-
 	struct wpa_ssid *ssid = wpa_supplicant_add_network(wpa_s_0);
+	bool pmf = true;
 
 	ssid->ssid = os_zalloc(sizeof(u8) * MAX_SSID_LEN);
 
@@ -84,7 +80,8 @@ static int wifi_supp_connect(uint32_t mgmt_request, struct net_if *iface,
 	wpa_s_0->conf->ap_scan= 1;
 
 	if (params->psk) {
-		if (wpa3) {
+		// TODO: Extend enum wifi_security_type
+		if (params->security == 3) {
 			ssid->key_mgmt = WPA_KEY_MGMT_SAE;
 			str_clear_free(ssid->sae_password);
 			ssid->sae_password = dup_binstr(params->psk, params->psk_length);
@@ -93,7 +90,7 @@ static int wifi_supp_connect(uint32_t mgmt_request, struct net_if *iface,
 				return -1;
 			}
 		} else {
-			if (psk_256)
+			if (params->security == 2)
 				ssid->key_mgmt = WPA_KEY_MGMT_PSK_SHA256;
 			else
 				ssid->key_mgmt = WPA_KEY_MGMT_PSK;

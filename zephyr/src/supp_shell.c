@@ -159,6 +159,7 @@ static int __wifi_args_to_params(size_t argc, char *argv[],
 	params->ssid = argv[0];
 	params->ssid_length = strlen(params->ssid);
 
+#ifdef notyet
 	/* Channel (optional) */
 	if ((idx < argc) && (strlen(argv[idx]) <= 2)) {
 		params->channel = strtol(argv[idx], &endptr, 10);
@@ -174,12 +175,17 @@ static int __wifi_args_to_params(size_t argc, char *argv[],
 	} else {
 		params->channel = WIFI_CHANNEL_ANY;
 	}
+#endif
 
 	/* PSK (optional) */
 	if (idx < argc) {
 		params->psk = argv[idx];
 		params->psk_length = strlen(argv[idx]);
 		params->security = WIFI_SECURITY_TYPE_PSK;
+		idx++;
+		if ((idx < argc) && (strlen(argv[idx]) <= 2)) {
+				params->security= strtol(argv[idx], &endptr, 10);
+		}
 	} else {
 		params->security = WIFI_SECURITY_TYPE_NONE;
 	}
