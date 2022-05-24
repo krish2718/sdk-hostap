@@ -67,7 +67,7 @@ static int wifi_supp_connect(uint32_t mgmt_request, struct net_if *iface,
 	const struct img_rpu_dev_ops_zep *nvlsi_dev_ops = dev->api;
 #endif /* notyet */
 	// TODO: Make this user configurable from shell
-	bool wpa3 = true;
+	bool wpa3 = false;
 	bool psk_256 = true;
 	bool pmf = true;
 
