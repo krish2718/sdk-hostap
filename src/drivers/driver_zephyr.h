@@ -85,6 +85,8 @@ struct zep_wpa_supp_dev_ops {
 		       int set_tx, const unsigned char *seq, size_t seq_len,
 		       const unsigned char *key, size_t key_len);
 	int (*set_supp_port)(void *if_priv, int authorized, char *bssid);
+	int (*set_ap)(void *priv, struct wpa_driver_ap_params *params);
+	int (*stop_ap)(void *priv);
 };
 
 void wpa_supp_event_handler(void *ctx, void *data, void *cb);

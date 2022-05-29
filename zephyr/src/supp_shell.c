@@ -159,7 +159,6 @@ static int __wifi_args_to_params(size_t argc, char *argv[],
 	params->ssid = argv[0];
 	params->ssid_length = strlen(params->ssid);
 
-#ifdef notyet
 	/* Channel (optional) */
 	if ((idx < argc) && (strlen(argv[idx]) <= 2)) {
 		params->channel = strtol(argv[idx], &endptr, 10);
@@ -175,7 +174,6 @@ static int __wifi_args_to_params(size_t argc, char *argv[],
 	} else {
 		params->channel = WIFI_CHANNEL_ANY;
 	}
-#endif
 
 	/* PSK (optional) */
 	if (idx < argc) {
@@ -273,7 +271,6 @@ static int cmd_supplicant_scan(const struct shell *shell, size_t argc,
 	return 0;
 }
 
-#ifdef notyet
 static int cmd_supplicant_ap_enable(const struct shell *shell, size_t argc,
 				    char *argv[])
 {
@@ -322,7 +319,7 @@ SHELL_STATIC_SUBCMD_SET_CREATE(supplicant_cmd_ap,
 					 "Disable Access Point mode",
 					 cmd_supplicant_ap_disable),
 			       SHELL_SUBCMD_SET_END);
-#endif /* notyet */
+
 
 SHELL_STATIC_SUBCMD_SET_CREATE(
 	supplicant_commands,
@@ -335,8 +332,8 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
 #ifdef notyet
 	SHELL_CMD(disconnect, NULL, "Disconnect from AP",
 		  cmd_supplicant_disconnect),
-	SHELL_CMD(ap, &supplicant_cmd_ap, "Access Point mode commands", NULL),
 #endif /* notyet */
+	SHELL_CMD(ap, &supplicant_cmd_ap, "Access Point mode commands", NULL),
 	SHELL_SUBCMD_SET_END);
 
 SHELL_CMD_REGISTER(wpa_supp, &supplicant_commands, "WPA supplicant commands",

@@ -527,6 +527,7 @@ static int wpa_drv_zep_get_capa(void *priv, struct wpa_driver_capa *capa)
 	capa->flags = 0;
 	capa->flags |= WPA_DRIVER_FLAGS_SME;
 	capa->flags |= WPA_DRIVER_FLAGS_SAE;
+	capa->flags |= WPA_DRIVER_FLAGS_AP;
 
 	return 0;
 }
@@ -569,6 +570,175 @@ static int wpa_drv_zep_set_supp_port(void *priv, int authorized)
 			authorized, if_ctx->bssid);
 }
 
+#ifdef CONFIG_WPA_SUPP_AP
+static int wpa_drv_zep_set_ap(void *priv, struct wpa_driver_ap_params *params)
+{
+	struct zep_drv_if_ctx *if_ctx = NULL;
+	const struct zep_wpa_supp_dev_ops *dev_ops = NULL;
+
+	if_ctx = priv;
+
+	dev_ops = if_ctx->dev_ctx->api;
+
+	return dev_ops->set_ap(if_ctx->dev_priv, params);
+}
+
+static int wpa_drv_zep_stop_ap(void *priv)
+{
+	struct zep_drv_if_ctx *if_ctx = NULL;
+	const struct zep_wpa_supp_dev_ops *dev_ops = NULL;
+
+	if_ctx = priv;
+
+	dev_ops = if_ctx->dev_ctx->api;
+
+	return dev_ops->stop_ap(if_ctx->dev_priv);
+}
+#endif
+
+static struct hostapd_hw_modes * wpa_drv_zep_hw_modes(void *priv,
+							 u16 *num_modes,
+							 u16 *flags, u8 *dfs)
+{
+	u16 m;
+	struct hostapd_hw_modes  *mode11g = NULL, *nmodes, *modes, *mode;
+	int i, mode11g_idx = -1;
+	*num_modes = 1;
+	const int dot11g_rates[] = { 10, 20, 55, 110, 60, 90, 120, 180, 240, 360, 480, 540 };
+
+	modes = os_realloc_array(NULL, *num_modes, sizeof(*modes));
+	if (modes == NULL)
+		return NULL;
+
+	// TODO: Get this from driver
+	mode = &modes[0];
+
+	mode->num_channels = 11;
+	mode->num_rates = ARRAY_SIZE(dot11g_rates);
+	mode->channels = os_zalloc(sizeof(struct hostapd_channel_data) *
+				      mode->num_channels);
+	if (mode->channels == NULL)
+		return NULL;
+
+	mode->rates = os_malloc(mode->num_rates * sizeof(int));
+	if (mode->rates == NULL) {
+		os_free(mode->channels);
+		(*num_modes)--;
+		return modes;
+	}
+	for (i = 0; i < mode->num_rates; i++) {
+		mode->rates[i] = dot11g_rates[i];
+	}
+	for (i = 0; i < mode->num_channels; i++) {
+		mode->channels[i].freq = 2412 + i * 5;
+		mode->channels[i].chan = i + 1;
+		mode->channels[i].allowed_bw = HOSTAPD_CHAN_WIDTH_20;
+	}
+	/* heuristic to set up modes */
+	for (m = 0; m < *num_modes; m++) {
+		if (!modes[m].num_channels)
+			continue;
+		if (modes[m].channels[0].freq < 2000) {
+			modes[m].num_channels = 0;
+			continue;
+		} else if (modes[m].channels[0].freq < 4000) {
+			modes[m].mode = HOSTAPD_MODE_IEEE80211B;
+			for (i = 0; i < modes[m].num_rates; i++) {
+				if (modes[m].rates[i] > 200) {
+					modes[m].mode = HOSTAPD_MODE_IEEE80211G;
+					break;
+				}
+			}
+		} else if (modes[m].channels[0].freq > 50000)
+			modes[m].mode = HOSTAPD_MODE_IEEE80211AD;
+		else
+			modes[m].mode = HOSTAPD_MODE_IEEE80211A;
+	}
+
+	/* Remove unsupported bands */
+	m = 0;
+	while (m < *num_modes) {
+		if (modes[m].mode == NUM_HOSTAPD_MODES) {
+			wpa_printf(MSG_DEBUG,
+				   "nl80211: Remove unsupported mode");
+			os_free(modes[m].channels);
+			os_free(modes[m].rates);
+			if (m + 1 < *num_modes)
+				os_memmove(&modes[m], &modes[m + 1],
+					   sizeof(struct hostapd_hw_modes) *
+					   (*num_modes - (m + 1)));
+			(*num_modes)--;
+			continue;
+		}
+		m++;
+	}
+
+	/* If only 802.11g mode is included, use it to construct matching
+	 * 802.11b mode data. */
+
+	for (m = 0; m < *num_modes; m++) {
+		if (modes[m].mode == HOSTAPD_MODE_IEEE80211B)
+			return modes; /* 802.11b already included */
+		if (modes[m].mode == HOSTAPD_MODE_IEEE80211G)
+			mode11g_idx = m;
+	}
+
+	if (mode11g_idx < 0)
+		return modes; /* 2.4 GHz band not supported at all */
+
+	nmodes = os_realloc_array(modes, *num_modes + 1, sizeof(*nmodes));
+	if (nmodes == NULL)
+		return modes; /* Could not add 802.11b mode */
+
+	mode = &nmodes[*num_modes];
+	os_memset(mode, 0, sizeof(*mode));
+	(*num_modes)++;
+	modes = nmodes;
+
+	mode->mode = HOSTAPD_MODE_IEEE80211B;
+
+	mode11g = &modes[mode11g_idx];
+	mode->num_channels = mode11g->num_channels;
+	mode->channels = os_memdup(mode11g->channels,
+				   mode11g->num_channels *
+				   sizeof(struct hostapd_channel_data));
+	if (mode->channels == NULL) {
+		(*num_modes)--;
+		return modes; /* Could not add 802.11b mode */
+	}
+
+	mode->num_rates = 0;
+	mode->rates = os_malloc(4 * sizeof(int));
+	if (mode->rates == NULL) {
+		os_free(mode->channels);
+		(*num_modes)--;
+		return modes; /* Could not add 802.11b mode */
+	}
+
+	for (i = 0; i < mode11g->num_rates; i++) {
+		if (mode11g->rates[i] != 10 && mode11g->rates[i] != 20 &&
+		    mode11g->rates[i] != 55 && mode11g->rates[i] != 110)
+			continue;
+		mode->rates[mode->num_rates] = mode11g->rates[i];
+		mode->num_rates++;
+		if (mode->num_rates == 4)
+			break;
+	}
+
+	if (mode->num_rates == 0) {
+		os_free(mode->channels);
+		os_free(mode->rates);
+		(*num_modes)--;
+		return modes; /* No 802.11b rates */
+	}
+
+	wpa_printf(MSG_DEBUG, "nl80211: Added 802.11b mode based on 802.11g "
+		   "information");
+
+	return modes;
+}
+
+
 const struct wpa_driver_ops wpa_driver_zep_ops = {
 	.name = "zephyr",
 	.desc = "Zephyr wpa_supplicant driver",
@@ -589,4 +759,9 @@ const struct wpa_driver_ops wpa_driver_zep_ops = {
 	.deauthenticate = wpa_drv_zep_deauthenticate,
 #endif /* notyet */
 	.set_key = wpa_drv_zep_set_key,
+	.get_hw_feature_data = wpa_drv_zep_hw_modes,
+#ifdef CONFIG_WPA_SUPP_AP
+	.set_ap = wpa_drv_zep_set_ap,
+	.stop_ap = wpa_drv_zep_stop_ap,
+#endif
 };

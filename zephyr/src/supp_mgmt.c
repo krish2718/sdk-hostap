@@ -113,5 +113,41 @@ static int wifi_supp_connect(uint32_t mgmt_request, struct net_if *iface,
 	return 0;
 }
 
+static int wifi_supp_ap_enable(uint32_t mgmt_request, struct net_if *iface,
+			       void *data, size_t len)
+{
+	struct wifi_connect_req_params *params =
+		(struct wifi_connect_req_params *)data;
+	struct wpa_supplicant *wpa_s = wpa_s_0;
+	struct wpa_ssid *ssid = wpa_supplicant_add_network(wpa_s_0);
+
+	ssid->ssid = os_zalloc(sizeof(u8) * MAX_SSID_LEN);
+
+	memcpy(ssid->ssid, params->ssid, params->ssid_length);
+	ssid->ssid_len = params->ssid_length;
+	ssid->disabled = 1;
+	ssid->mode = 2;
+	// TODO: Take this from shell
+	ssid->frequency = 2412;
+	// TODO: 11g for now
+	ssid->ht = 0;
+	ssid->key_mgmt = WPA_KEY_MGMT_NONE;
+
+	wpa_s->conf->filter_ssids = 1;
+	// Start AP immediately
+	wpa_s->conf->ap_scan= 2;
+
+	wpa_supplicant_enable_network(wpa_s, ssid);
+}
+
+static int wifi_supp_ap_disable(uint32_t mgmt_request, struct net_if *iface,
+			       void *data, size_t len)
+{
+	struct wifi_connect_req_params *params =
+		(struct wifi_connect_req_params *)data;
+}
+
 NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_SUPP_SCAN, wifi_supp_scan);
 NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_SUPP_CONNECT, wifi_supp_connect);
+NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_SUPP_AP_ENABLE, wifi_supp_ap_enable);
+NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_SUPP_AP_DISABLE, wifi_supp_ap_disable);

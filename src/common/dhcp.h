@@ -9,13 +9,67 @@
 #ifndef DHCP_H
 #define DHCP_H
 
+#ifndef CONFIG_ZEPHYR
 #include <netinet/ip.h>
+#endif
 #if __FAVOR_BSD
 #include <netinet/udp.h>
 #else
 #define __FAVOR_BSD 1
+#ifndef CONFIG_ZEPHYR
 #include <netinet/udp.h>
 #undef __FAVOR_BSD
+#endif
+#endif
+
+#ifdef CONFIG_ZEPHYR
+/* UDP header as specified by RFC 768, August 1980. */
+
+struct udphdr
+{
+  __extension__ union
+  {
+    struct
+    {   
+      uint16_t uh_sport;        /* source port */
+      uint16_t uh_dport;        /* destination port */
+      uint16_t uh_ulen;         /* udp length */
+      uint16_t uh_sum;          /* udp checksum */
+    };  
+    struct
+    {   
+      uint16_t source;
+      uint16_t dest;
+      uint16_t len;
+      uint16_t check;
+    };  
+  };  
+};
+/*
+ * Structure of an internet header, naked of options.
+ */
+struct ip
+  {
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+    unsigned int ip_hl:4;               /* header length */
+    unsigned int ip_v:4;                /* version */
+#elif __BYTE_ORDER == __BIG_ENDIAN
+    unsigned int ip_v:4;                /* version */
+    unsigned int ip_hl:4;               /* header length */
+#endif
+    uint8_t ip_tos;                     /* type of service */
+    unsigned short ip_len;              /* total length */
+    unsigned short ip_id;               /* identification */
+    unsigned short ip_off;              /* fragment offset field */
+#define IP_RF 0x8000                    /* reserved fragment flag */
+#define IP_DF 0x4000                    /* dont fragment flag */
+#define IP_MF 0x2000                    /* more fragments flag */
+#define IP_OFFMASK 0x1fff               /* mask for fragmenting bits */
+    uint8_t ip_ttl;                     /* time to live */
+    uint8_t ip_p;                       /* protocol */
+    unsigned short ip_sum;              /* checksum */
+    struct in_addr ip_src, ip_dst;      /* source and dest address */
+  }; 
 #endif
 
 #define DHCP_SERVER_PORT 67
