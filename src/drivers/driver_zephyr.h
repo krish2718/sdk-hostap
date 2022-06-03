@@ -28,7 +28,7 @@ struct zep_drv_if_ctx {
 	void *supp_if_ctx;
 	const struct device *dev_ctx;
 	void *dev_priv;
-
+	char ifname[IFNAMSIZ];
 	struct wpa_scan_results *scan_res2;
 	bool scan_res2_get_in_prog;
 

@@ -184,6 +184,14 @@ static void wpa_drv_zep_global_deinit(void *priv)
 	os_free(drv_ctx);
 }
 
+static void iface_cb(struct net_if *iface, void *user_data)
+{
+	struct zep_drv_if_ctx *if_ctx = user_data;
+
+	if (strncmp(iface->if_dev->dev->name, if_ctx->ifname, IFNAMSIZ) == 0) {
+		if_ctx->dev_ctx = net_if_get_device(iface)->data;
+	}
+}
 /**
  * wpa_driver_zep_init - Initialize Zephyr driver interface
  * @ctx: Context to be used when calling wpa_supplicant functions,
@@ -206,8 +214,16 @@ static void *wpa_drv_zep_init(void *ctx, const char *ifname, void *global_priv)
 	}
 
 	if_ctx->supp_if_ctx = ctx;
+	os_memcpy(if_ctx->ifname, ifname, sizeof(if_ctx->ifname));
 
-	if_ctx->dev_ctx = net_if_get_device(net_if_get_default());
+	net_if_foreach(iface_cb, if_ctx);
+
+	if (!if_ctx->dev_ctx) {
+		os_free(if_ctx);
+		printk("%s: Failed to initialize device: %s\n", __func__, ifname);
+		goto out;
+	}
+
 	if_ctx->drv_ctx = global_priv;
 
 	dev_ops = if_ctx->dev_ctx->api;

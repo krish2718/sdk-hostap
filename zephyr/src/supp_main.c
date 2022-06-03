@@ -60,6 +60,7 @@ static int wpa_supplicant_init_match(struct wpa_global *global)
 #endif /* CONFIG_MATCH_IFACE */
 
 #include "config.h"
+
 static void iface_cb(struct net_if *iface, void *user_data)
 {
 	struct wpa_interface *ifaces = user_data;
@@ -79,8 +80,8 @@ static void iface_cb(struct net_if *iface, void *user_data)
 		ifname, ifindex, own_addr[0], own_addr[1], own_addr[2],
 		own_addr[3], own_addr[4], own_addr[5]);
 
-        /* TODO : make this user configurable*/
-        ifaces[0].ifname = "wlan0";
+    /* TODO : make this user configurable*/
+    ifaces[0].ifname = "wlan1";
 }
 
 void start_wpa_supplicant_thread(void)
