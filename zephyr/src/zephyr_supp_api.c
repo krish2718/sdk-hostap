@@ -12,737 +12,277 @@
  * See README for more details.
  */
 
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 
 #include "includes.h"
 #include "common.h"
-#include "rsn_supp/preauth.h"
 #include "common/defs.h"
 #include "wpa_supplicant/config.h"
 #include "wpa_supplicant_i.h"
 #include "driver_i.h"
-#include "fst/fst.h"
-#include "p2p_supplicant.h"
-#include "wpa_supplicant_i.h"
-#include "wifi_mgmt.h"
+
+#include "zephyr_fmac_main.h"
+#include "zephyr_supp_api.h"
 
 int cli_main(int, const char **);
-extern struct wpa_supplicant *wpa_s_0;
+extern struct wpa_global *global;
 
+enum requested_ops {
+	CONNECT = 0,
+	DISCONNECT
+};
 
-int zep_supp_ctrl_iface_status(struct wpa_supplicant *wpa_s,
-					    const char *params,
-					    char *buf, size_t buflen)
+#define DEFAULT_CONNECTION_TIMEOUT_S 15
+
+struct wpa_supp_api_ctrl {
+	const struct device *dev;
+	int requested_op;
+	int connection_timeout;
+};
+
+struct wpa_supp_api_ctrl wpa_supp_api_ctrl;
+
+static inline struct wpa_supplicant * get_wpa_s_handle(const struct device *dev)
 {
-	char *pos, *end, tmp[30];
-	int res, verbose, wps, ret;
-#ifdef CONFIG_HS20
-	const u8 *hs20;
-#endif /* CONFIG_HS20 */
-	const u8 *sess_id;
-	size_t sess_id_len;
+	struct wpa_supplicant *wpa_s = wpa_supplicant_get_iface(global, dev->name);
+	if (!wpa_s) {
+		wpa_printf(MSG_ERROR,
+		"%s: Unable to get wpa_s handle for %s\n", __func__, dev->name);
+		return NULL;
+	}
 
-	if (os_strcmp(params, "-DRIVER") == 0)
-		return wpa_drv_status(wpa_s, buf, buflen);
-	verbose = os_strcmp(params, "-VERBOSE") == 0;
-	wps = os_strcmp(params, "-WPS") == 0;
-	pos = buf;
-	end = buf + buflen;
+	return wpa_s;
+}
+
+static void supp_shell_connect_status(void *wpa_supp_api_ctrl)
+{
+	int i = 0, status = 0;
+	struct wpa_supplicant *wpa_s;
+	struct wpa_supp_api_ctrl *ctrl = ctrl;
+
+	wpa_s = get_wpa_s_handle(ctrl->dev);
+	if (!wpa_s) {
+		status = 1;
+		goto out;
+	}
+
+	if (ctrl->requested_op == CONNECT) {
+		/* TODO: use a timer for connection timeout*/
+		while (wpa_s->wpa_state != WPA_COMPLETED && i++ < ctrl->connection_timeout){
+			k_yield();
+			k_msleep(1000);
+		}
+
+		if (i >= ctrl->connection_timeout){
+			if (wpa_s->wpa_state != WPA_COMPLETED){
+				zephyr_supp_disconnect(ctrl->dev);
+				status = 1;
+				goto out;
+			}
+		}
+	}
+out:
+	if (ctrl->requested_op == CONNECT) {
+		wifi_mgmt_raise_connect_result_event(net_if_lookup_by_dev(ctrl->dev), status);
+	} else if (ctrl->requested_op == DISCONNECT) {
+		/* Disconnect is a synchronous operation i.e., we are already disconnected
+		 * we are just using this thread to post net_mgmt event
+		 */
+		wifi_mgmt_raise_disconnect_result_event(net_if_lookup_by_dev(ctrl->dev), 0);
+	}
+}
+
+K_THREAD_DEFINE(wpa_supp_api,
+				1024,
+				supp_shell_connect_status,
+                &wpa_supp_api_ctrl,
+                NULL,
+                NULL,
+                0,
+                0,
+                -1);
+
+
+int zephyr_supp_scan(const struct device *dev, scan_result_cb_t cb)
+{
+	const struct wifi_nrf_dev_ops *dev_ops = dev->api;
+
+	return dev_ops->off_api.disp_scan(dev, cb);
+}
+
+
+int zephyr_supp_connect(const struct device *dev,
+						struct wifi_connect_req_params *params)
+{
+	struct wpa_ssid *ssid = NULL;
+	bool pmf = true;
+	struct wpa_supplicant *wpa_s;
+
+	wpa_s = get_wpa_s_handle(dev);
+	if (!wpa_s) {
+		return -1;
+	}
+
+	ssid = wpa_supplicant_add_network(wpa_s);
+	ssid->ssid = os_zalloc(sizeof(u8) * MAX_SSID_LEN);
+
+	memcpy(ssid->ssid, params->ssid, params->ssid_length);
+	ssid->ssid_len = params->ssid_length;
+	ssid->disabled = 1;
+	ssid->key_mgmt = WPA_KEY_MGMT_NONE;
+
+	wpa_s->conf->filter_ssids = 1;
+	wpa_s->conf->ap_scan = 1;
+
+	if (params->psk) {
+		// TODO: Extend enum wifi_security_type
+		if (params->security == 3) {
+			ssid->key_mgmt = WPA_KEY_MGMT_SAE;
+			str_clear_free(ssid->sae_password);
+			ssid->sae_password = dup_binstr(params->psk, params->psk_length);
+
+			if (ssid->sae_password == NULL) {
+				wpa_printf(MSG_ERROR, "%s:Failed t copy sae_password\n",
+					      __func__);
+				return -1;
+			}
+		} else {
+			if (params->security == 2)
+				ssid->key_mgmt = WPA_KEY_MGMT_PSK_SHA256;
+			else
+				ssid->key_mgmt = WPA_KEY_MGMT_PSK;
+
+			str_clear_free(ssid->passphrase);
+			ssid->passphrase = dup_binstr(params->psk, params->psk_length);
+
+			if (ssid->passphrase == NULL) {
+				wpa_printf(MSG_ERROR, "%s:Failed t copy passphrase\n",
+				__func__);
+				return -1;
+			}
+		}
+
+		wpa_config_update_psk(ssid);
+
+		if (pmf)
+			ssid->ieee80211w = 1;
+
+	}
+
+	wpa_supplicant_enable_network(wpa_s,
+				      ssid);
+
+	wpa_supplicant_select_network(wpa_s,
+				      ssid);
+
+	wpa_supp_api_ctrl.dev = dev;
+	wpa_supp_api_ctrl.requested_op = CONNECT;
+	wpa_supp_api_ctrl.connection_timeout = params->timeout <= 0 ?
+			DEFAULT_CONNECTION_TIMEOUT_S: params->timeout;
+	/* Cleanup previous spawns */
+	k_thread_abort(wpa_supp_api);
+	k_thread_start(wpa_supp_api);
+
+	return 0;
+}
+
+int zephyr_supp_disconnect(const struct device *dev)
+{
+	struct wpa_supplicant *wpa_s;
+
+	wpa_s = get_wpa_s_handle(dev);
+	if (!wpa_s) {
+		return -1;
+	}
+	wpa_supp_api_ctrl.dev = dev;
+	wpa_supp_api_ctrl.requested_op = DISCONNECT;
+	wpas_request_disconnection(wpa_s);
+	/* Cleanup previous spawns */
+	k_thread_abort(wpa_supp_api);
+	k_thread_start(wpa_supp_api);
+	return 0;
+}
+
+
+static inline int wpas_band_to_zephyr(enum wpa_radio_work_band band)
+{
+	switch(band) {
+		case BAND_2_4_GHZ:
+			return WIFI_FREQ_BAND_2_4_GHZ;
+		case BAND_5_GHZ:
+			return WIFI_FREQ_BAND_5_GHZ;
+		default:
+			return -1; /* Unknown */
+	}
+}
+
+static inline int wpas_key_mgmt_to_zephyr(int key_mgmt)
+{
+	switch(key_mgmt) {
+		case WPA_KEY_MGMT_NONE:
+			return WIFI_SECURITY_TYPE_NONE;
+		case WPA_KEY_MGMT_PSK:
+			return WIFI_SECURITY_TYPE_PSK;
+		case WPA_KEY_MGMT_PSK_SHA256:
+			return WIFI_SECURITY_TYPE_PSK_SHA256;
+		case WPA_KEY_MGMT_SAE:
+			return WIFI_SECURITY_TYPE_SAE;
+		default:
+			return -1; /* Unknown */
+	}
+}
+
+
+struct wifi_iface_status* zephyr_supp_status(const struct device *dev)
+{
+	struct wifi_iface_status *status;
+	struct wpa_supplicant *wpa_s;
+
+	wpa_s = get_wpa_s_handle(dev);
+	if (!wpa_s) {
+		return NULL;
+	}
+
+	status = os_zalloc(sizeof(*status));
+	if (!status) {
+		wpa_printf(MSG_ERROR, "failed to allocate memory for status\n");
+		return NULL;
+	}
+
+	status->state = wpa_s->wpa_state;
+
 	if (wpa_s->wpa_state >= WPA_ASSOCIATED) {
 		struct wpa_ssid *ssid = wpa_s->current_ssid;
-		ret = os_snprintf(pos, end - pos, "bssid=" MACSTR "\n",
-				  MAC2STR(wpa_s->bssid));
-		if (os_snprintf_error(end - pos, ret))
-			return pos - buf;
-		pos += ret;
-		ret = os_snprintf(pos, end - pos, "freq=%u\n",
-				  wpa_s->assoc_freq);
-		if (os_snprintf_error(end - pos, ret))
-			return pos - buf;
-		pos += ret;
+		u8 channel;
+
+		os_memcpy(status->bssid, wpa_s->bssid, WIFI_MAC_ADDR_LEN);
+		status->band = wpas_band_to_zephyr(wpas_freq_to_band(wpa_s->assoc_freq));
+		status->security = wpas_key_mgmt_to_zephyr(ssid->key_mgmt);
+		status->mfp = ssid->ieee80211w; /* Same mapping */
+		ieee80211_freq_to_chan(wpa_s->assoc_freq, &channel);
+		status->channel = channel;
+
 		if (ssid) {
 			u8 *_ssid = ssid->ssid;
 			size_t ssid_len = ssid->ssid_len;
-			u8 ssid_buf[SSID_MAX_LEN];
+			u8 ssid_buf[SSID_MAX_LEN] = {0};
+
 			if (ssid_len == 0) {
 				int _res = wpa_drv_get_ssid(wpa_s, ssid_buf);
+
 				if (_res < 0)
 					ssid_len = 0;
 				else
 					ssid_len = _res;
 				_ssid = ssid_buf;
 			}
-			ret = os_snprintf(pos, end - pos, "ssid=%s\nid=%d\n",
-					  wpa_ssid_txt(_ssid, ssid_len),
-					  ssid->id);
-			if (os_snprintf_error(end - pos, ret))
-				return pos - buf;
-			pos += ret;
-
-			if (wps && ssid->passphrase &&
-			    wpa_key_mgmt_wpa_psk(ssid->key_mgmt) &&
-			    (ssid->mode == WPAS_MODE_AP ||
-			     ssid->mode == WPAS_MODE_P2P_GO)) {
-				ret = os_snprintf(pos, end - pos,
-						  "passphrase=%s\n",
-						  ssid->passphrase);
-				if (os_snprintf_error(end - pos, ret))
-					return pos - buf;
-				pos += ret;
-			}
-			if (ssid->id_str) {
-				ret = os_snprintf(pos, end - pos,
-						  "id_str=%s\n",
-						  ssid->id_str);
-				if (os_snprintf_error(end - pos, ret))
-					return pos - buf;
-				pos += ret;
-			}
-
-			switch (ssid->mode) {
-			case WPAS_MODE_INFRA:
-				ret = os_snprintf(pos, end - pos,
-						  "mode=station\n");
-				break;
-			case WPAS_MODE_IBSS:
-				ret = os_snprintf(pos, end - pos,
-						  "mode=IBSS\n");
-				break;
-			case WPAS_MODE_AP:
-				ret = os_snprintf(pos, end - pos,
-						  "mode=AP\n");
-				break;
-			case WPAS_MODE_P2P_GO:
-				ret = os_snprintf(pos, end - pos,
-						  "mode=P2P GO\n");
-				break;
-			case WPAS_MODE_P2P_GROUP_FORMATION:
-				ret = os_snprintf(pos, end - pos,
-						  "mode=P2P GO - group "
-						  "formation\n");
-				break;
-			case WPAS_MODE_MESH:
-				ret = os_snprintf(pos, end - pos,
-						  "mode=mesh\n");
-				break;
-			default:
-				ret = 0;
-				break;
-			}
-			if (os_snprintf_error(end - pos, ret))
-				return pos - buf;
-			pos += ret;
-		}
-
-		if (wpa_s->connection_set &&
-		    (wpa_s->connection_ht || wpa_s->connection_vht ||
-		     wpa_s->connection_he)) {
-			ret = os_snprintf(pos, end - pos,
-					  "wifi_generation=%u\n",
-					  wpa_s->connection_he ? 6 :
-					  (wpa_s->connection_vht ? 5 : 4));
-			if (os_snprintf_error(end - pos, ret))
-				return pos - buf;
-			pos += ret;
-		}
-
-#ifdef CONFIG_AP
-		if (wpa_s->ap_iface) {
-			pos += ap_ctrl_iface_wpa_get_status(wpa_s, pos,
-							    end - pos,
-							    verbose);
-		} else
-#endif /* CONFIG_AP */
-		pos += wpa_sm_get_status(wpa_s->wpa, pos, end - pos, verbose);
-	}
-#ifdef CONFIG_SME
-#ifdef CONFIG_SAE
-	if (wpa_s->wpa_state >= WPA_ASSOCIATED &&
-#ifdef CONFIG_AP
-	    !wpa_s->ap_iface &&
-#endif /* CONFIG_AP */
-	    wpa_s->sme.sae.state == SAE_ACCEPTED) {
-		ret = os_snprintf(pos, end - pos, "sae_group=%d\n"
-				  "sae_h2e=%d\n"
-				  "sae_pk=%d\n",
-				  wpa_s->sme.sae.group,
-				  wpa_s->sme.sae.h2e,
-				  wpa_s->sme.sae.pk);
-		if (os_snprintf_error(end - pos, ret))
-			return pos - buf;
-		pos += ret;
-	}
-#endif /* CONFIG_SAE */
-#endif /* CONFIG_SME */
-	ret = os_snprintf(pos, end - pos, "wpa_state=%s\n",
-			  wpa_supplicant_state_txt(wpa_s->wpa_state));
-	if (os_snprintf_error(end - pos, ret))
-		return pos - buf;
-	pos += ret;
-
-	if (wpa_s->l2 &&
-	    l2_packet_get_ip_addr(wpa_s->l2, tmp, sizeof(tmp)) >= 0) {
-		ret = os_snprintf(pos, end - pos, "ip_address=%s\n", tmp);
-		if (os_snprintf_error(end - pos, ret))
-			return pos - buf;
-		pos += ret;
-	}
-
-#ifdef CONFIG_P2P
-	if (wpa_s->global->p2p) {
-		ret = os_snprintf(pos, end - pos, "p2p_device_address=" MACSTR
-				  "\n", MAC2STR(wpa_s->global->p2p_dev_addr));
-		if (os_snprintf_error(end - pos, ret))
-			return pos - buf;
-		pos += ret;
-	}
-#endif /* CONFIG_P2P */
-
-	ret = os_snprintf(pos, end - pos, "address=" MACSTR "\n",
-			  MAC2STR(wpa_s->own_addr));
-	if (os_snprintf_error(end - pos, ret))
-		return pos - buf;
-	pos += ret;
-
-#ifdef CONFIG_HS20
-	if (wpa_s->current_bss &&
-	    (hs20 = wpa_bss_get_vendor_ie(wpa_s->current_bss,
-					  HS20_IE_VENDOR_TYPE)) &&
-	    wpa_s->wpa_proto == WPA_PROTO_RSN &&
-	    wpa_key_mgmt_wpa_ieee8021x(wpa_s->key_mgmt)) {
-		int release = 1;
-		if (hs20[1] >= 5) {
-			u8 rel_num = (hs20[6] & 0xf0) >> 4;
-			release = rel_num + 1;
-		}
-		ret = os_snprintf(pos, end - pos, "hs20=%d\n", release);
-		if (os_snprintf_error(end - pos, ret))
-			return pos - buf;
-		pos += ret;
-	}
-
-	if (wpa_s->current_ssid) {
-		struct wpa_cred *cred;
-		char *type;
-
-		for (cred = wpa_s->conf->cred; cred; cred = cred->next) {
-			size_t i;
-
-			if (wpa_s->current_ssid->parent_cred != cred)
-				continue;
-
-			if (cred->provisioning_sp) {
-				ret = os_snprintf(pos, end - pos,
-						  "provisioning_sp=%s\n",
-						  cred->provisioning_sp);
-				if (os_snprintf_error(end - pos, ret))
-					return pos - buf;
-				pos += ret;
-			}
-
-			if (!cred->domain)
-				goto no_domain;
-
-			i = 0;
-			if (wpa_s->current_bss && wpa_s->current_bss->anqp) {
-				struct wpabuf *names =
-					wpa_s->current_bss->anqp->domain_name;
-				for (i = 0; names && i < cred->num_domain; i++)
-				{
-					if (domain_name_list_contains(
-						    names, cred->domain[i], 1))
-						break;
-				}
-				if (i == cred->num_domain)
-					i = 0; /* show first entry by default */
-			}
-			ret = os_snprintf(pos, end - pos, "home_sp=%s\n",
-					  cred->domain[i]);
-			if (os_snprintf_error(end - pos, ret))
-				return pos - buf;
-			pos += ret;
-
-		no_domain:
-			if (wpa_s->current_bss == NULL ||
-			    wpa_s->current_bss->anqp == NULL)
-				res = -1;
-			else
-				res = interworking_home_sp_cred(
-					wpa_s, cred,
-					wpa_s->current_bss->anqp->domain_name);
-			if (res > 0)
-				type = "home";
-			else if (res == 0)
-				type = "roaming";
-			else
-				type = "unknown";
-
-			ret = os_snprintf(pos, end - pos, "sp_type=%s\n", type);
-			if (os_snprintf_error(end - pos, ret))
-				return pos - buf;
-			pos += ret;
-
-			break;
+			os_memcpy(status->ssid, _ssid, ssid_len);
+			status->ssid_len = ssid_len;
+			status->iface_mode = ssid->mode;
+			/* TODO: Derive this based on association IEs */
+			status->link_mode = WIFI_6;
 		}
 	}
-#endif /* CONFIG_HS20 */
 
-	if (wpa_key_mgmt_wpa_ieee8021x(wpa_s->key_mgmt) ||
-	    wpa_s->key_mgmt == WPA_KEY_MGMT_IEEE8021X_NO_WPA) {
-		res = eapol_sm_get_status(wpa_s->eapol, pos, end - pos,
-					  verbose);
-		if (res >= 0)
-			pos += res;
-	}
-
-#ifdef CONFIG_MACSEC
-	res = ieee802_1x_kay_get_status(wpa_s->kay, pos, end - pos);
-	if (res > 0)
-		pos += res;
-#endif /* CONFIG_MACSEC */
-
-	sess_id = eapol_sm_get_session_id(wpa_s->eapol, &sess_id_len);
-	if (sess_id) {
-		char *start = pos;
-
-		ret = os_snprintf(pos, end - pos, "eap_session_id=");
-		if (os_snprintf_error(end - pos, ret))
-			return start - buf;
-		pos += ret;
-		ret = wpa_snprintf_hex(pos, end - pos, sess_id, sess_id_len);
-		if (ret <= 0)
-			return start - buf;
-		pos += ret;
-		ret = os_snprintf(pos, end - pos, "\n");
-		if (os_snprintf_error(end - pos, ret))
-			return start - buf;
-		pos += ret;
-	}
-
-	res = rsn_preauth_get_status(wpa_s->wpa, pos, end - pos, verbose);
-	if (res >= 0)
-		pos += res;
-
-#ifdef CONFIG_WPS
-	{
-		char uuid_str[100];
-		uuid_bin2str(wpa_s->wps->uuid, uuid_str, sizeof(uuid_str));
-		ret = os_snprintf(pos, end - pos, "uuid=%s\n", uuid_str);
-		if (os_snprintf_error(end - pos, ret))
-			return pos - buf;
-		pos += ret;
-	}
-#endif /* CONFIG_WPS */
-
-	if (wpa_s->ieee80211ac) {
-		ret = os_snprintf(pos, end - pos, "ieee80211ac=1\n");
-		if (os_snprintf_error(end - pos, ret))
-			return pos - buf;
-		pos += ret;
-	}
-
-#ifdef ANDROID
-	/*
-	 * Allow using the STATUS command with default behavior, say for debug,
-	 * i.e., don't generate a "fake" CONNECTION and SUPPLICANT_STATE_CHANGE
-	 * events with STATUS-NO_EVENTS.
-	 */
-	if (os_strcmp(params, "-NO_EVENTS")) {
-		wpa_msg_ctrl(wpa_s, MSG_INFO, WPA_EVENT_STATE_CHANGE
-			     "id=%d state=%d BSSID=" MACSTR " SSID=%s",
-			     wpa_s->current_ssid ? wpa_s->current_ssid->id : -1,
-			     wpa_s->wpa_state,
-			     MAC2STR(wpa_s->bssid),
-			     wpa_s->current_ssid && wpa_s->current_ssid->ssid ?
-			     wpa_ssid_txt(wpa_s->current_ssid->ssid,
-					  wpa_s->current_ssid->ssid_len) : "");
-		if (wpa_s->wpa_state == WPA_COMPLETED) {
-			struct wpa_ssid *ssid = wpa_s->current_ssid;
-			wpa_msg_ctrl(wpa_s, MSG_INFO, WPA_EVENT_CONNECTED
-				     "- connection to " MACSTR
-				     " completed %s [id=%d id_str=%s]",
-				     MAC2STR(wpa_s->bssid), "(auth)",
-				     ssid ? ssid->id : -1,
-				     ssid && ssid->id_str ? ssid->id_str : "");
-		}
-	}
-#endif /* ANDROID */
-
-	return pos - buf;
-}
-
-int _prepare_and_call_wpa_cli(char *cmd)
-{
-	const char *argv[CONFIG_SHELL_ARGC_MAX + 1]; /* +1 reserved for NULL */
-	size_t argc = 0;
-	const char **argvp;
-	char quote;
-	int ret = -1;
-
-	argv[0] = cmd;
-	argvp = &argv[0];
-
-	quote = z_shell_make_argv(&argc, argvp, cmd, 4);
-
-	if (argc == 0) {
-		return -ENOEXEC;
-	} else if ((argc == 1) && (quote != 0)) {
-		wpa_printf(MSG_ERROR, "not terminated: %c\n", quote);
-		return -ENOEXEC;
-	}
-
-	return cli_main(argc, argv);
-}
-
-int zephyr_supp_disable_network(int id)
-{
-	char cmd[512] = {'\0'};
-
-	os_snprintf(cmd, sizeof(cmd), "disable_network %d", id);
-	return _prepare_and_call_wpa_cli(cmd);
-}
-
-int zephyr_supp_remove_network(char *id)
-{
-	char cmd[512] = {'\0'};
-
-	os_snprintf(cmd, sizeof(cmd), "remove_network %s", id);
-	return _prepare_and_call_wpa_cli(cmd);
-}
-
-int zephyr_supp_enable_network(int id)
-{
-	char cmd[512] = {'\0'};
-
-	os_snprintf(cmd, sizeof(cmd), "enable_network %d", id);
-	return _prepare_and_call_wpa_cli(cmd);
-}
-
-int zephyr_supp_select_network(int id)
-{
-	char cmd[512] = {'\0'};
-
-	os_snprintf(cmd, sizeof(cmd), "select_network %d", id);
-	return _prepare_and_call_wpa_cli(cmd);
-}
-
-int zephyr_supp_reassociate(void)
-{
-	char cmd[512] = {'\0'};
-	os_snprintf(cmd, sizeof(cmd), "reassociate");
-	return _prepare_and_call_wpa_cli(cmd);
-}
-
-int zephyr_supp_disconnect(void)
-{
-	char cmd[512] = {'\0'};
-	os_snprintf(cmd, sizeof(cmd), "disconnect");
-	return _prepare_and_call_wpa_cli(cmd);
-}
-
-int zephyr_supp_add_network(void)
-{
-	struct wpa_ssid *ssid;
-
-	ssid = wpa_supplicant_add_network(wpa_s_0);
-	if (ssid)
-		return ssid->id;
-
-	return -1;
-}
-
-int zephyr_supp_signal_poll(void)
-{
-	char cmd[512] = {'\0'};
-	os_snprintf(cmd, sizeof(cmd), "signal_poll");
-	return _prepare_and_call_wpa_cli(cmd);
-}
-
-int zephyr_supp_set_ssid(int id, const char *ssid_name)
-{
-	char cmd[512] = {'\0'};
-	os_snprintf(cmd, sizeof(cmd), "set_network %d ssid %s", id, ssid_name);
-	return _prepare_and_call_wpa_cli(cmd);
-}
-
-int zephyr_supp_set_psk(int id, const char *psk)
-{
-	char cmd[512] = {'\0'};
-	os_snprintf(cmd, sizeof(cmd), "set_network %d psk %s", id, psk);
-	return _prepare_and_call_wpa_cli(cmd);
-}
-
-int zephyr_supp_set_key_mgmt(int id, int key_mgmt)
-{
-	struct wpa_ssid *ssid;
-	int errors = 0;
-
-	if (!wpa_s_0) {
-		wpa_printf(MSG_ERROR, "%s: wpa_supplicant is not initialized, "
-		"droppping command\n", __func__);
-		return -1;
-	}
-	ssid = wpa_config_get_network(wpa_s_0->conf, id);
-	if (ssid == NULL) {
-		wpa_printf(MSG_DEBUG, "Could not find network id=%d\n", id);
-		return -1;
-	}
-
-	if (key_mgmt == 0) {
-		wpa_printf(MSG_ERROR, "Line %d: no key_mgmt values configured.", id);
-		errors = 1;
-	}
-
-	if (!errors && ssid->key_mgmt == key_mgmt)
-		return 1;
-	wpa_printf(MSG_MSGDUMP, "key_mgmt: 0x%x", key_mgmt);
-	ssid->key_mgmt = key_mgmt;
-
-	return errors ? -1 : 0;
-}
-
-int zephyr_supp_set_pairwise_cipher(int id, int pairwise_cipher)
-{
-	struct wpa_ssid *ssid;
-	int errors = 0;
-
-	if (!wpa_s_0) {
-		wpa_printf(MSG_ERROR, "%s: wpa_supplicant is not initialized, "
-		"droppping command\n", __func__);
-		return -1;
-	}
-	ssid = wpa_config_get_network(wpa_s_0->conf, id);
-	if (ssid == NULL) {
-		wpa_printf(MSG_DEBUG, "Could not find network id=%d\n", id);
-		return -1;
-	}
-
-	if (pairwise_cipher == 0) {
-		wpa_printf(MSG_ERROR, "%d: no pairwise_cipher values configured.", id);
-		errors = 1;
-	}
-
-	if (pairwise_cipher & ~WPA_ALLOWED_PAIRWISE_CIPHERS) {
-		wpa_printf(MSG_ERROR, "Line %d: not allowed pairwise cipher (0x%x).",
-		 id, pairwise_cipher);
-		return -1;
-	}
-
-	if (!errors && ssid->pairwise_cipher == pairwise_cipher)
-		return 1;
-	wpa_printf(MSG_MSGDUMP, "pairwise_cipher: 0x%x", pairwise_cipher);
-	ssid->pairwise_cipher = pairwise_cipher;
-
-	return errors ? -1 : 0;
-}
-
-int zephyr_supp_set_group_cipher(int id, int group_cipher)
-{
-	struct wpa_ssid *ssid;
-	int errors = 0;
-
-	if (!wpa_s_0) {
-		wpa_printf(MSG_ERROR, "%s: wpa_supplicant is not initialized, droppping command\n",
-			   __func__);
-		return -1;
-	}
-	ssid = wpa_config_get_network(wpa_s_0->conf, id);
-	if (ssid == NULL) {
-		wpa_printf(MSG_DEBUG, "Could not find network id=%d\n", id);
-		return -1;
-	}
-
-	if (group_cipher == 0) {
-		wpa_printf(MSG_ERROR, "%d: no group_cipher values configured.", id);
-		errors = 1;
-	}
-
-	/*
-	 * Backwards compatibility - filter out WEP ciphers that were previously
-	 * allowed.
-	 */
-	group_cipher &= ~(WPA_CIPHER_WEP104 | WPA_CIPHER_WEP40);
-
-	if (group_cipher & ~WPA_ALLOWED_GROUP_CIPHERS) {
-		wpa_printf(MSG_ERROR, "Line %d: not allowed group cipher (0x%x).",
-		 id, group_cipher);
-		return -1;
-	}
-
-	if (!errors && ssid->group_cipher == group_cipher)
-		return 1;
-	wpa_printf(MSG_MSGDUMP, "group_cipher: 0x%x", group_cipher);
-	ssid->group_cipher = group_cipher;
-
-	return errors ? -1 : 0;
-}
-
-int zephyr_supp_set_proto(int id, int proto)
-{
-	struct wpa_ssid *ssid;
-	int errors = 0;
-
-	if (!wpa_s_0) {
-		wpa_printf(MSG_ERROR, "%s: wpa_supplicant is not initialized, droppping command\n",
-			   __func__);
-		return -1;
-	}
-	ssid = wpa_config_get_network(wpa_s_0->conf, id);
-	if (ssid == NULL) {
-		wpa_printf(MSG_DEBUG, "Could not find network id=%d\n", id);
-		return -1;
-	}
-
-	if (proto == 0) {
-		wpa_printf(MSG_ERROR,
-			   "Line %d: no proto values configured.", id);
-		errors = 1;
-	}
-
-	if (!errors && ssid->proto == proto)
-		return 1;
-	wpa_printf(MSG_MSGDUMP, "proto: 0x%x", proto);
-	ssid->proto = proto;
-
-	return errors ? -1 : 0;
-}
-
-int zephyr_supp_set_auth_alg(int id, int auth_alg)
-{
-	struct wpa_ssid *ssid;
-	int errors = 0;
-
-	if (!wpa_s_0) {
-		wpa_printf(MSG_ERROR, "%s: wpa_supplicant is not initialized, droppping command\n",
-			   __func__);
-		return -1;
-	}
-	ssid = wpa_config_get_network(wpa_s_0->conf, id);
-	if (ssid == NULL) {
-		wpa_printf(MSG_DEBUG, "Could not find network id=%d\n", id);
-		return -1;
-	}
-
-	if (auth_alg == 0) {
-		wpa_printf(MSG_ERROR,
-			   "Line %d: no auth_alg values configured.", id);
-		errors = 1;
-	}
-
-	if (!errors && ssid->auth_alg == auth_alg)
-		return 1;
-	wpa_printf(MSG_MSGDUMP, "auth_alg: 0x%x", auth_alg);
-	ssid->auth_alg = auth_alg;
-
-	return errors ? -1 : 0;
-}
-
-int zephyr_supp_set_scan_ssid(int id, int scan_ssid)
-{
-	struct wpa_ssid *ssid;
-	int errors = 0;
-
-	if (!wpa_s_0) {
-		wpa_printf(MSG_ERROR, "%s: wpa_supplicant is not initialized, droppping command\n",
-			   __func__);
-		return -1;
-	}
-	ssid = wpa_config_get_network(wpa_s_0->conf, id);
-	if (ssid == NULL) {
-		wpa_printf(MSG_DEBUG, "Could not find network id=%d\n", id);
-		return -1;
-	}
-
-	if (!errors && ssid->scan_ssid == scan_ssid)
-		return 1;
-	wpa_printf(MSG_MSGDUMP, "scan_ssid: 0x%x", scan_ssid);
-	ssid->scan_ssid = scan_ssid;
-
-	return errors ? -1 : 0;
-}
-
-int zephyr_supp_sta_autoconnect(int autoconnect)
-{
-	if (!wpa_s_0) {
-		wpa_printf(MSG_ERROR, "%s: wpa_supplicant is not initialized, droppping command\n",
-			   __func__);
-		return -1;
-	}
-
-	wpa_printf(MSG_MSGDUMP, "autoconnect: 0x%x", autoconnect);
-	wpa_s_0->auto_reconnect_disabled = autoconnect == 0;
-
-	return 0;
-}
-
-int zephyr_supp_set_bssid(int id, uint8_t *bssid)
-{
-	struct wpa_ssid *ssid;
-	int errors = 0;
-
-	if (!wpa_s_0) {
-		wpa_printf(MSG_ERROR, "%s: wpa_supplicant is not initialized, droppping command\n",
-			   __func__);
-		return -1;
-	}
-	ssid = wpa_config_get_network(wpa_s_0->conf, id);
-	if (ssid == NULL) {
-		wpa_printf(MSG_DEBUG, "Could not find network id=%d\n", id);
-		return -1;
-	}
-
-	wpa_printf(MSG_MSGDUMP, "bssid: %02x:%02x:%02x:%02x:%02x:%02x",
-	bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]);
-	memcpy(ssid->bssid, bssid, ETH_ALEN);
-	ssid->bssid_set = 1;
-
-	return errors ? -1 : 0;
-}
-
-int zephyr_supp_set_scan_freq(int id, int *freqs)
-{
-	struct wpa_ssid *ssid;
-	int errors = 0;
-
-	if (!wpa_s_0) {
-		wpa_printf(MSG_ERROR, "%s: wpa_supplicant is not initialized, droppping command\n",
-			   __func__);
-		return -1;
-	}
-	ssid = wpa_config_get_network(wpa_s_0->conf, id);
-	if (ssid == NULL) {
-		wpa_printf(MSG_DEBUG, "Could not find network id=%d\n", id);
-		return -1;
-	}
-
-	os_free(ssid->scan_freq);
-	ssid->scan_freq = freqs;
-
-	return errors ? -1 : 0;
-}
-
-int zephyr_supp_set_ieee80211w(int id, int ieee80211w)
-{
-	char cmd[512] = {'\0'};
-	os_snprintf(cmd, sizeof(cmd), "set_network %d ieee80211w %d", id, ieee80211w);
-	return _prepare_and_call_wpa_cli(cmd);
-}
-
-int zephyr_supp_set_country(const char *country_code)
-{
-	char cmd[512] = {'\0'};
-	os_snprintf(cmd, sizeof(cmd), "set country %s", country_code);
-	return _prepare_and_call_wpa_cli(cmd);
-}
-
-int zephyr_supp_set_pmf(int pmf)
-{
-	char cmd[512] = {'\0'};
-	os_snprintf(cmd, sizeof(cmd), "set pmf %d", pmf);
-	return _prepare_and_call_wpa_cli(cmd);
-}
-
-int zephyr_supp_status(char *status_buf, size_t buflen)
-{
-       return zep_supp_ctrl_iface_status(wpa_s_0,"", status_buf, buflen);
+	return status;
 }
