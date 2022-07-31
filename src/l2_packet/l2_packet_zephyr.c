@@ -93,19 +93,19 @@ static void l2_packet_receive(int sock, void *eloop_ctx, void *sock_ctx)
 		return;
 	}
 
-	// FIXME: sll_addr is not being filled as L2 header is not removed
-	wpa_printf(MSG_DEBUG, "%s: src=" MACSTR " proto=0x%x len=%d",
-		   __func__, MAC2STR(ll.sll_addr), ll.sll_protocol, (int) res);
+	wpa_printf(MSG_DEBUG, "%s: src=" MACSTR " proto=0x%x len=%d l2_prot: 0x%x",
+		   __func__, MAC2STR(ll.sll_addr), ll.sll_protocol, (int) res, l2->protocol);
 
-	hdr = (const struct ieee802_1x_hdr *) buf;
 
-	// FIXME: L2 header is now removed but sll_protocol is not set.
-	// So, as a workaround add this check to drop packets.
-	if (hdr->type != IEEE802_1X_TYPE_EAPOL_KEY)
+	/* Zephyr network stacks only filters standard L2 protocols, all non-standard
+	 * ones are sent to the application even though application is bound to the
+	 * specific protocol.
+	 *
+	 * So, filter the packets based on registered protocol.
+	 */
+	if (l2->protocol != ll.sll_protocol)
 		return;
 
-	// FIXME: We should only get registered protcols from networking stack
-	// but for some reason ETH_P_ALL is being set (bind_default)
 	l2->rx_callback(l2->rx_callback_ctx, ll.sll_addr, buf, res);
 }
 
