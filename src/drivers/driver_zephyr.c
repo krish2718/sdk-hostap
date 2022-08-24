@@ -754,6 +754,27 @@ static int wpa_drv_zep_set_supp_port(void *priv,
 	return ret;
 }
 
+static int wpa_drv_zep_signal_poll(void *priv, struct wpa_signal_info *si)
+{
+	struct zep_drv_if_ctx *if_ctx = NULL;
+	const struct zep_wpa_supp_dev_ops *dev_ops = NULL;
+	int ret = -1;
+
+	if (!priv) {
+		wpa_printf(MSG_ERROR, "%s: Invalid handle\n", __func__);
+		goto out;
+	}
+
+	if_ctx = priv;
+	dev_ops = if_ctx->dev_ctx->config;
+
+	os_memset(si, 0, sizeof(*si));
+	ret = dev_ops->signal_poll(if_ctx->dev_priv, si, if_ctx->bssid);
+
+out:
+	return ret;
+}
+
 
 const struct wpa_driver_ops wpa_driver_zep_ops = {
 	.name = "zephyr",
@@ -773,4 +794,5 @@ const struct wpa_driver_ops wpa_driver_zep_ops = {
 	.set_supp_port = wpa_drv_zep_set_supp_port,
 	.deauthenticate = wpa_drv_zep_deauthenticate,
 	.set_key = wpa_drv_zep_set_key,
+	.signal_poll = wpa_drv_zep_signal_poll,
 };
