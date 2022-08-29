@@ -292,3 +292,23 @@ struct wifi_iface_status* zephyr_supp_status(const struct device *dev)
 
 	return status;
 }
+
+int zephyr_supp_stats(const struct device *dev, struct net_stats_wifi *zstats)
+{
+	//struct net_stats_wifi *zstats = NULL;
+	struct rpu_op_stats stats;
+	const struct wifi_nrf_dev_ops *dev_ops = dev->api;
+	int ret = -1;
+
+	ret = dev_ops->off_api.get_stats(dev, &stats);
+
+	if (!ret) {
+		zstats->pkts.tx = stats.host.total_tx_pkts;
+		zstats->pkts.rx = stats.host.total_rx_pkts;
+		goto out;
+	}
+
+out:
+	return ret;
+
+}

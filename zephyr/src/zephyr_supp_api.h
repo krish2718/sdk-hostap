@@ -9,6 +9,7 @@
 #define ZEPHYR_SUPP_MGMT_H
 
 #include <zephyr/net/wifi_mgmt.h>
+#include <zephyr/net/net_stats.h>
 
 #define MAX_SSID_LEN 32
 #define MAC_ADDR_LEN 6

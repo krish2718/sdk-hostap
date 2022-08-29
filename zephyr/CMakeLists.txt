@@ -24,6 +24,8 @@ zephyr_include_directories(
 	${HOSTAP_BASE}/
 	${WPA_SUPPLICANT_BASE}/
 	${COMMON_SRC_BASE}/
+	${ZEPHYR_BASE}/include
+	${ZEPHYR_BASE}/include/net
 )
 
 zephyr_library_compile_definitions(
