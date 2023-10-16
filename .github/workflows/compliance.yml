@@ -70,7 +70,7 @@ jobs:
         # debug
         ls -la
         git log  --pretty=oneline | head -n 10
-        ./scripts/ci/check_compliance.py --annotate -e KconfigBasic -e Kconfig \
+        ./scripts/ci/check_compliance.py --annotate -e gitlint -e KconfigBasic -e Kconfig \
         -c origin/${BASE_REF}..
 
     - name: upload-results
@@ -106,3 +106,6 @@ jobs:
         if [ "${exit}" == "1" ]; then
           exit 1;
         fi
+
+    - name: Check nRF sauce tags
+      uses: nrfconnect/action-commit-tags@v1
