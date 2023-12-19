@@ -3040,8 +3040,11 @@ struct wpa_ssid * wpa_config_add_network(struct wpa_config *config)
 	id++;
 
 	ssid = os_zalloc(sizeof(*ssid));
-	if (ssid == NULL)
+	if (ssid == NULL) {
+		wpa_printf(MSG_ERROR, "Failed to allocate memory of size %lu "
+			   "for new network", (unsigned long) sizeof(*ssid));
 		return NULL;
+	}
 	ssid->id = id;
 	dl_list_init(&ssid->psk_list);
 	if (last)

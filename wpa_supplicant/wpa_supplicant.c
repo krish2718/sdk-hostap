@@ -5384,8 +5384,12 @@ wpa_supplicant_alloc(struct wpa_supplicant *parent)
 	struct wpa_supplicant *wpa_s;
 
 	wpa_s = os_zalloc(sizeof(*wpa_s));
-	if (wpa_s == NULL)
+	if (wpa_s == NULL) {
+		wpa_printf(MSG_ERROR, "Failed to allocate memory of size %lu "
+			   "for wpa_supplicant",
+			   (unsigned long) sizeof(*wpa_s));
 		return NULL;
+	}
 	wpa_s->scan_req = INITIAL_SCAN_REQ;
 	wpa_s->scan_interval = 5;
 	wpa_s->new_connection = 1;
@@ -7376,8 +7380,12 @@ struct wpa_global * wpa_supplicant_init(struct wpa_params *params)
 	}
 
 	global = os_zalloc(sizeof(*global));
-	if (global == NULL)
+	if (global == NULL) {
+		wpa_printf(MSG_ERROR, "Failed to allocate memory of size %lu "
+			   "for wpa_global",
+			   (unsigned long) sizeof(*global));
 		return NULL;
+	}
 	dl_list_init(&global->p2p_srv_bonjour);
 	dl_list_init(&global->p2p_srv_upnp);
 	global->params.daemonize = params->daemonize;
@@ -7451,6 +7459,9 @@ struct wpa_global * wpa_supplicant_init(struct wpa_params *params)
 	}
 	global->drv_priv = os_calloc(global->drv_count, sizeof(void *));
 	if (global->drv_priv == NULL) {
+		wpa_printf(MSG_ERROR, "Failed to allocate driver wrappers: "
+			   "%lu bytes", (unsigned long) sizeof(void *) *
+			   global->drv_count);
 		wpa_supplicant_deinit(global);
 		return NULL;
 	}
@@ -7654,8 +7665,12 @@ static int * get_bss_freqs_in_ess(struct wpa_supplicant *wpa_s)
 	int num_freqs = 0;
 
 	freqs = os_calloc(max_freqs + 1, sizeof(int));
-	if (freqs == NULL)
+	if (freqs == NULL) {
+		wpa_printf(MSG_ERROR, "Failed to allocate memory of size %lu "
+			   "for freqs", (unsigned long) sizeof(int) *
+			   (max_freqs + 1));
 		return NULL;
+	}
 
 	cbss = wpa_s->current_bss;
 
