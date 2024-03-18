@@ -2060,7 +2060,7 @@ static int wpa_scan_result_compar(const void *a, const void *b)
 	struct wpa_scan_res *wa = *_wa;
 	struct wpa_scan_res *wb = *_wb;
 	int wpa_a, wpa_b;
-	int snr_a, snr_b, snr_a_full, snr_b_full;
+	int snr_a, snr_b;
 
 	/* WPA/WPA2 support preferred */
 	wpa_a = wpa_scan_get_vendor_ie(wa, WPA_IE_VENDOR_TYPE) != NULL ||
@@ -2082,15 +2082,13 @@ static int wpa_scan_result_compar(const void *a, const void *b)
 		return -1;
 
 	if (wa->flags & wb->flags & WPA_SCAN_LEVEL_DBM) {
-		snr_a_full = wa->snr;
-		snr_a = MIN(wa->snr, GREAT_SNR);
-		snr_b_full = wb->snr;
-		snr_b = MIN(wb->snr, GREAT_SNR);
+		snr_a = wa->snr;
+		snr_b = wb->snr;
 	} else {
 		/* Level is not in dBm, so we can't calculate
 		 * SNR. Just use raw level (units unknown). */
-		snr_a = snr_a_full = wa->level;
-		snr_b = snr_b_full = wb->level;
+		snr_a = wa->level;
+		snr_b = wb->level;
 	}
 
 	/* If SNR is close, decide by max rate or frequency band. For cases
@@ -2116,9 +2114,9 @@ static int wpa_scan_result_compar(const void *a, const void *b)
 	/* all things being equal, use SNR; if SNRs are
 	 * identical, use quality values since some drivers may only report
 	 * that value and leave the signal level zero */
-	if (snr_b_full == snr_a_full)
+	if (snr_b == snr_a)
 		return wb->qual - wa->qual;
-	return snr_b_full - snr_a_full;
+	return snr_b - snr_a;
 #undef MIN
 }
 
